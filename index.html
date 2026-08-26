@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>白色失明文字麻将</title>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/agora-rtm-sdk@1.5.1-21/index.js"></script>
 <style>
 :root{
   --bg:#1a1a2e;
@@ -79,14 +81,14 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
 .remaining-tiles:hover{border-color:var(--gold)}
 .remaining-tiles .count{font-size:36px;font-weight:700;color:var(--gold);font-family:monospace}
 .remaining-tiles .label{font-size:12px;color:var(--muted)}
-.action-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10}
+.action-bar{position:absolute;bottom:200px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10}
 .action-btn{padding:12px 28px;font-size:16px;font-weight:700;border-radius:8px;border:none;cursor:pointer;min-width:80px;transition:all .2s}
 .action-btn:disabled{opacity:.4;cursor:not-allowed}
 .action-btn.primary{background:var(--accent);color:#fff}
 .action-btn.secondary{background:#5a5a7a;color:var(--text)}
 .action-btn.gold{background:var(--gold);color:#1a1a2e}
 .action-btn.active{background:var(--my-turn);color:#1a1a2e;box-shadow:0 0 12px var(--my-turn)}
-.chat-panel{position:absolute;right:16px;top:16px;width:280px;height:400px;background:var(--panel);border:1px solid var(--tile-border);border-radius:12px;display:flex;flex-direction:column;z-index:5}
+.chat-panel{position:absolute;right:16px;top:16px;width:280px;height:400px;background:var(--panel);border:1px solid var(--tile-border);border-radius:12px;display:none;flex-direction:column;z-index:5}
 .chat-header{padding:12px 16px;border-bottom:1px solid var(--tile-border);display:flex;justify-content:space-between;align-items:center}
 .chat-title{font-size:14px;color:var(--muted)}
 .chat-toggle{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;line-height:1}
@@ -98,7 +100,7 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
 .chat-input-area input{flex:1;padding:10px;border-radius:8px;border:1px solid var(--tile-border);background:var(--bg);color:var(--text);font-size:14px;outline:none}
 .chat-input-area input:focus{border-color:var(--accent)}
 .send-btn{padding:10px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:14px;font-weight:600}
-.chat-fab{position:fixed;top:16px;right:100px;z-index:60;padding:8px 16px;border-radius:20px;border:1px solid var(--tile-border);background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;display:none}
+.chat-fab{position:fixed;top:16px;right:100px;z-index:60;padding:8px 16px;border-radius:20px;border:1px solid var(--tile-border);background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;display:block}
 .rules-fab{position:fixed;top:16px;right:16px;z-index:60;padding:8px 16px;border-radius:20px;border:1px solid var(--tile-border);background:var(--panel);color:var(--gold);cursor:pointer;font-size:13px}
 .rules-fab:hover{border-color:var(--gold)}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
@@ -163,26 +165,30 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
     .player-area.top { top: 4px; width: 96%; }
     .player-area.left { left: 4px; height: 70%; }
     .player-area.right { right: 4px; height: 70%; }
-    .hand-area .tile { width: 34px; height: 46px; font-size: 16px; }
-    .hand-area { gap: 2px; min-height: 46px; }
-    .discard-area .tile { width: 22px; height: 30px; font-size: 11px; }
-    .discard-area { min-height: 30px; max-height: 80px; }
-    .meld-area { min-height: 40px; }
+    .hand-area .tile { width: 30px; height: 42px; font-size: 15px; }
+    .hand-area { gap: 2px; min-height: 42px; }
+    .discard-area .tile { width: 20px; height: 28px; font-size: 10px; }
+    .discard-area { min-height: 28px; max-height: 70px; }
+    .meld-area { min-height: 36px; }
     .meld-group { padding: 2px 4px; }
-    .meld-group .tile { width: 22px; height: 30px; font-size: 11px; }
+    .meld-group .tile { width: 20px; height: 28px; font-size: 10px; }
     .player-name { font-size: 11px; }
     .player-status { font-size: 10px; }
     .remaining-tiles { padding: 8px 14px; }
     .remaining-tiles .count { font-size: 24px; }
     .remaining-tiles .label { font-size: 10px; }
     #turn-indicator { font-size: 12px; }
-    .action-bar { bottom: 52px; gap: 6px; }
+    .center-area { top: 32%; }
+    .remaining-tiles { padding: 6px 12px; }
+    .remaining-tiles .count { font-size: 22px; }
+    .remaining-tiles .label { font-size: 9px; }
+    .action-bar { bottom: 130px; gap: 6px; z-index: 20; }
     .action-btn { padding: 8px 16px; font-size: 13px; min-width: 56px; }
     .chat-fab, .rules-fab { top: 4px; padding: 4px 10px; font-size: 11px; }
     .chat-fab { right: 72px; }
     .rules-fab { right: 4px; }
     .connection-status { top: 4px; left: 4px; padding: 4px 8px; font-size: 10px; }
-    .toast { bottom: 80px; padding: 8px 16px; font-size: 12px; }
+    .toast { bottom: 160px; padding: 8px 16px; font-size: 12px; }
     .modal { max-width: 90%; padding: 16px; max-height: 90vh; }
     .modal h3 { font-size: 18px; }
   }
@@ -250,6 +256,7 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
       <button class="btn btn-primary" id="create-room-btn">创建房间</button>
       <button class="btn btn-secondary" id="join-room-btn" style="margin-top:12px">加入房间</button>
       <button class="btn btn-gold" id="start-game-btn" style="margin-top:12px;display:none">开始游戏 (0/4)</button>
+      <button class="btn btn-secondary" id="share-link-btn" style="margin-top:12px;display:none">分享链接</button>
       <button class="btn btn-secondary" id="rules-btn-lobby" style="margin-top:12px">玩法规则</button>
       <div class="warning-box" id="warning-box">
         <strong>联机说明</strong><br>
@@ -361,16 +368,15 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">二、基本流程</p>
         <p style="margin-bottom:4px">1. 每名玩家起手13张牌，庄家（座位0）首轮直接摸牌。</p>
         <p style="margin-bottom:4px">2. 回合开始时从牌库摸1张牌，然后从手牌中选1张打出。</p>
-        <p style="margin-bottom:4px">3. 有人打出牌后，下家可选择吃/碰/胡/过，其他玩家可选择胡。</p>
-        <p style="margin-bottom:4px">4. 吃或碰后跳过摸牌，直接进入出牌阶段。</p>
+        <p style="margin-bottom:4px">3. 有人打出牌后，下家可选择吃/胡/过，其他玩家可选择胡。</p>
+        <p style="margin-bottom:4px">4. 吃后跳过摸牌，直接进入出牌阶段。</p>
         <p style="margin-bottom:4px">5. 所有人选择「过」后，下家摸牌，继续下一回合。</p>
-        <p style="margin-bottom:12px">6. 牌库共144张（36种汉字各4张），摸空则流局。</p>
+        <p style="margin-bottom:12px">6. 牌库共192张（182个不同汉字，其中10个字各2张），摸空则流局。</p>
 
-        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">三、吃牌与碰牌</p>
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">三、吃牌</p>
         <p style="margin-bottom:4px">・ 吃牌：只能吃上家打出的牌，用手牌中的字与打出的字组成词库中的词语（2-4字）。</p>
-        <p style="margin-bottom:4px">・ 碰牌：任何玩家打出的牌，若自己手牌中有2张相同字，即可碰。</p>
-        <p style="margin-bottom:4px">・ 吃碰后该牌组放入副露区（明牌），并跳过摸牌直接出牌。</p>
-        <p style="margin-bottom:12px">・ 优先级：胡 ＞ 碰 ＞ 吃；AI有50%概率碰、30%概率吃。</p>
+        <p style="margin-bottom:4px">・ 吃后该牌组放入副露区（明牌），并跳过摸牌直接出牌。</p>
+        <p style="margin-bottom:12px">・ 无碰牌（牌库中同字最多2张，无法凑3张碰）；AI有30%概率吃。</p>
 
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">四、胡牌条件</p>
         <p style="margin-bottom:4px">・ 真人胡牌：点击「胡」发起投票，不校验手牌，其他真人全票同意即胡。</p>
@@ -392,10 +398,9 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">七、操作说明</p>
         <p style="margin-bottom:4px">・ 摸牌阶段：点击「摸牌」按钮或中央牌库数字。</p>
         <p style="margin-bottom:4px">・ 出牌阶段：点击手牌选中（上浮高亮），再点「打出」。</p>
-        <p style="margin-bottom:4px">・ 等待阶段（别人打出牌后）：下家显示「吃/碰/胡/过」，其他玩家显示「胡」。</p>
+        <p style="margin-bottom:4px">・ 等待阶段（别人打出牌后）：下家显示「吃/胡/过」，其他玩家显示「胡」。</p>
         <p style="margin-bottom:4px">・ 吃牌：点「吃」后选择要组成的词语。</p>
-        <p style="margin-bottom:4px">・ 碰牌：点「碰」直接碰牌。</p>
-        <p style="margin-bottom:4px">・ 过：放弃吃碰胡，由下家摸牌。</p>
+        <p style="margin-bottom:4px">・ 过：放弃吃胡，由下家摸牌。</p>
         <p style="margin-bottom:4px">・ 手牌整理：按住手牌拖动到目标位置可交换顺序，仅影响显示不影响游戏逻辑。</p>
         <p style="margin-bottom:4px">・ 聊天：右上角「聊天」按钮打开/关闭聊天面板。</p>
       </div>
@@ -436,56 +441,145 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
 // ============================================================
 
 var CARD_CHARS = [
-  "我","你","他","她",
-  "爱","想","看","走","吃","玩","说","做","要","会",
-  "在","有","的","了","是","不","和","吗","啊","吧",
-  "好","大","多","美",
-  "家","人","钱","饭","水","书","花","猫"
+  // 上半部分
+  "做","气","醒","少","饿","坏","这","它","色","后","有","月",
+  "给","爱","哭","麻","活","笑","王","钱","失","中","东","手",
+  "但","想","里","恋","飞","杀","吃","神","明","傻","西","影",
+  "电","野","几","日","发","喝","睡","跑","点","一","把","只",
+  "更","酒","天","老","花","和","白","热","对","为","很","多",
+  "鬼","海","地","来","风","光","去","红","如","别","都","少",
+  "被","就","过","虽","梦","语","是","迷","个","在","极","待",
+  "比","菜","到","只","春","烟","笑","要","大","吗","啊","吧",
+  "看","心","无","多","喜","听","在","说","就","眼","可","呆",
+  // 下半部分
+  "爷","男","奶","姐","孩","女","友","哥",
+  "仙","佛","法","还","道","灵","行","魔",
+  "鸭","猪","龙","狗","养","鱼","喂","鸟",
+  "大","都","有","你","小","不","人","我","美","了","谁","他","丑","好","哪","她","乱","纯","痛","乐","又","之","疯","快","好","着","欢","将","儿","的","黑","冷","绝","生","死","空",
+  "夜","偷","恨","渣","暗","烦","难","伤",
+  "叫","太","打","抽","搞","草","象","怪",
+  "诗","雨","晓","星","舞","水","情","歌"
 ];
 
-// 胡牌词库：所有能组成的有意义词语和短句
+// 胡牌词库：基于182字牌库生成的有意义词语和短句
 var HU_WORDS = [
   // 二字词
-  "你好","他人","她家","爱心","想你","看书","走路","吃饭","玩笑","说话",
-  "做饭","要好","在家","有钱","好的","了解","不是","好吗","走吧","是啊",
-  "大家","家人","金钱","饭菜","书本","花朵","猫咪","美好","爱你","想看",
-  "吃了","玩了","说了","做了","走了","看了","想了","爱了","要了","会了",
-  "好美","好多","大了","多了","美了","家了","人了","钱了","饭了","水了",
-  "书了","花了","猫了","我了","你了","他了","她了","的了","了的","是了",
-  "不的","和的","吗的","啊的","吧的","好的","大的","多的","美的","家的",
-  "人的","钱的","饭的","水的","书的","花的","猫的","我和","你和","他和",
+  "爱情","爱心","爱好","爱美","想你","想看","想吃","想做","说话","说笑","说好",
+  "做饭","做菜","做好","吃饭","吃菜","吃喝","看书","看海","看花","看风",
+  "走路","走开","飞行","飞鸟","飞龙","发呆","发现","发明","白天","白色",
+  "明白","明天","明星","黑夜","黑暗","冷水","火热","天气","天空","老人",
+  "老虎","大海","大小","大家","大人","小心","小鸟","小鱼","小孩","很多",
+  "多少","美丽","美好","美女","快乐","快点","欢乐","欢喜","心痛","心情",
+  "无心","无可","可以","可是","可能","呆傻","傻瓜","神仙","精神","精灵",
+  "灵气","灵活","魔鬼","魔术","佛法","道士","行动","行走","行为","为了",
+  "对着","对手","过去","过来","虽然","梦想","梦里","语言","是的","个人",
+  "在家","极度","等待","比较","到达","春天","春风","烟雾","要求","大麻",
+  "吧了","看吧","看着","听到","听话","喜悦","喜酒","无限","可爱","爷爷",
+  "男人","男孩","奶奶","姐姐","孩子","女孩","女儿","友好","友情","哥哥",
+  "仙女","仙人","佛祖","佛教","法律","还在","还有","道路","道理","知道",
+  "灵感","灵魂","鸭子","猪肉","猪头","龙飞","养狗","养鱼","喂鱼","喂鸟",
+  "鸟儿","你好","你们","小时","不是","不要","不好","人家","人们","我的",
+  "我是","我要","我有","了解","谁的","他们","他的","丑女","好坏","好的",
+  "哪里","哪个","她们","她的","乱说","乱搞","纯白","痛苦","痛快","又来",
+  "又是","之前","之后","疯子","疯狂","着急","着火","欢迎","欢笑","将来",
+  "儿童","儿女","黑白","黑色","冷水","冷清","绝对","绝望","生活","生命",
+  "生死","天空","空气","空白","夜晚","偷袭","偷看","恨你","渣滓","暗淡",
+  "烦心","烦恼","难过","难道","伤心","伤害","叫声","太阳","打人","打架",
+  "抽风","抽烟","搞怪","搞笑","草地","花草","象棋","怪事","诗歌","诗人",
+  "雨水","雨天","晓得","星星","星光","跳舞","水果","水中","情感","情人",
+  "歌唱","歌曲","歌星","酒醒","醒目","少了","饿了","坏事","坏了","这里",
+  "这个","它的","色彩","后来","后天","有了","有钱","有时","月光","月亮",
+  "给我","给你","爱哭","哭了","麻烦","麻木","活动","活了","笑话","笑脸",
+  "王子","金钱","失去","失恋","中间","中心","东西","东方","手心","手指",
+  "但是","但愿","里面","恋爱","杀人","杀死","神奇","神明","傻了","西瓜",
+  "西方","影子","电影","电话","野外","野菜","几乎","几个","日子","日常",
+  "发展","发达","喝酒","喝醉","睡觉","睡眠","跑步","跑了","点头","点火",
+  "一个","一天","把握","把手","只是","只有","更好","更加","酒店","酒醉",
+  "天地","天上","老花","和平","和谐","热情","热门","对话","对立","为何",
+  "为难","很好","很想","多好","多么","鬼子","鬼怪","海水","海风","地方",
+  "地球","来往","来去","风景","风雨","光线","光明","去年","红色","红花",
+  "如何","如果","别人","别离","都是","都有","被子","被动","就是","就来",
+  "过年","虽说","梦里","语文","是非","个体","在于","极限","待人","比例",
+  "比如","到底","春花","春季","烟火","要是","大麻","大人","吗啊","看见",
+  "看到","心里","心中","无数","喜欢","听到","听见","说明","眼睛","眼光",
+  "呆子","爷们","男生","奶牛","姐妹","孩童","女生","女王","友爱","哥们",
+  "仙境","佛寺","法院","懂得","魔力","野鸭","龙虾","狗养","鱼虾","喂食",
+  "鸟语","你的","小学","人民","了结","谁知","他要","丑陋","好看","乱动",
+  "纯洁","疼痛","乐园","之间","疯子","欢喜","将军","的话","的确","黑夜",
+  "天气","夜景","恨心","渣子","暗无","难受","叫好","太太","搞鬼","象眼",
+  "怪物","晓星","舞曲","心情",
   // 三字词
-  "我爱你","你好吗","他在家","她有猫","吃饭了","在看书","要不要","会不会",
-  "是不是","有钱了","好美啊","快走啊","吃饭吗","看书了","做好了","玩好啊",
-  "说好了","要走了","会好的","不是的","在家吗","有饭吗","你走吧","他走了",
-  "她在吗","我要走","你要看","他要吃","她要玩","大家好","我想你","你在吗",
-  "他有饭","她要走","我在吃","你在玩","他在说","她在做","好多了","太美了",
-  "好的啊","走吧啊","是啊啊","吃饭吧","看书吧","走路吧","做饭吧","玩笑吧",
-  "说话吧","爱你啊","想你啊","你好啊","他好啊","她好啊","大家啊","家人啊",
-  "金钱啊","饭菜啊","书本啊","花朵啊","猫咪啊","美好啊","在家啊","有钱啊",
+  "我爱你","你好吗","他在家","她有猫","吃饭了","在看书","要不要","是不是",
+  "有钱了","好美啊","快走啊","吃饭吗","看书了","做好了","说好的","要走了",
+  "不是的","在家吗","有饭吗","你走吧","他走了","她在吗","我要走","你要看",
+  "他要吃","她要玩","大家好","我想你","你在吗","好多了","太美了","好的啊",
+  "吃饭吧","看书吧","走路吧","做饭吧","说话吧","爱你啊","想你啊","你好啊",
+  "他好啊","她好啊","大家啊","有钱啊","睡不着","跑得快","飞得高","看得远",
+  "听得清","说得好","做得对","想得美","爱得深","恨得牙","痛得很","快乐啊",
+  "痛苦啊","伤心啊","难过啊","害怕啊","喜欢啊","讨厌啊","想要啊","不要啊",
+  "可以啊","行啊","好啊","对啊","是啊","对啊","对啊","行吧","好吧",
+  "去吧","来吧","走吧","吃吧","喝吧","看吧","听吧","说吧","做吧","想吧",
+  "爱吧","恨吧","哭吧","笑吧","睡吧","跑吧","飞吧","跳吧","唱吧","舞吧",
+  "写吧","读吧","学吧","玩吧","打吧","抽吧","搞吧","养吧","喂吧","偷吧",
+  "恨吧","烦吧","伤吧","难吧","苦吧","累吧","饿吧","渴吧","冷吧","热吧",
+  "黑吧","白吧","大吧","小吧","多吧","少吧","好吗","行吗","对吗","是吗",
+  "可以吗","能够吗","需要吗","想要吗","喜欢吗","讨厌吗","害怕吗","伤心吗",
+  "快乐吗","痛苦吗","难过吗","高兴吗","生气吗","着急吗","担心吗","放心吗",
   // 四字词
-  "我爱吃的饭","你在看书吗","他要走了吧","她有猫和花","大家好啊","有钱人家",
-  "吃饭了吗","你要走了吗","他不会做饭","我想你了啊","他在看书","她在吃饭",
-  "我要吃饭","你要看书","他要走路","她要玩猫","好多钱啊","美好人家",
-  "你好啊","他在吗","她有猫","我要走了","你要吃了","他要玩了","她要走了",
-  "大家好啊","有钱了啊","吃饭了啊","看书了啊","做好了啊","玩好啊",
-  // 五字及以上
-  "我爱吃的饭菜","你在看书了吗","他要走了吧","她有猫和花啊","有钱人家的饭",
-  "我想你了啊","他不会做饭的","我要吃饭了","你要看书吗","他要走路了",
-  "她要玩猫了","大家好啊","吃饭了吗你","我要吃饭了啊","你在看书了啊"
+  "我爱吃的饭","你在看书吗","他要走了吧","大家好啊","有钱人家","吃饭了吗",
+  "你要走了吗","我想你了啊","他在看书","她在吃饭","我要吃饭","你要看书",
+  "他要走路","好多钱啊","美好人家","你好啊","他在吗","她有猫","我要走了",
+  "你要吃了","他要玩了","她要走了","大家好啊","有钱了啊","吃饭了啊","看书了啊",
+  "做好了啊","天亮了啊","天黑了啊","花谢了啊","鸟飞了啊","狗跑了啊","鱼死了啊",
+  "心碎了啊","梦碎了啊","情断了啊","爱没了啊","恨消了啊","痛忘了啊","伤好了啊",
+  "太难了啊","太烦了啊","太累了啊","太饿了啊","太渴了啊","太冷了啊","太热了啊",
+  "太黑了啊","太白了啊","太大了啊","太小了啊","太多了啊","太少了啊","太好了啊",
+  "太坏了啊","太美了啊","太丑了啊","太傻了啊","太呆了啊","太疯了啊","太快了啊",
+  "太慢了啊","太老了啊","太小了啊","太新了啊","太旧了啊","太高了啊","太低了啊",
+  "太长了啊","太短了啊","太远了啊","太近了啊","太重了啊","太轻了啊","太硬了啊",
+  "太软了啊","太粗了啊","太细了啊","太宽了啊","太窄了啊","太深了啊","太浅了啊",
+  // 五字及以上短句
+  "我爱吃的饭菜","你在看书了吗","他要走了吧啊","有钱人家的饭","我想你了啊",
+  "他不会做饭的","我要吃饭了啊","你要看书吗啊","他要走路了啊","她要玩猫了啊",
+  "大家好啊你们好","吃饭了吗你好","我爱你你爱我吗","你在干什么呢啊","他在哪里啊",
+  "她还好吗啊","今天天气好啊","明天会更好啊","春天来了啊","花儿开了啊",
+  "鸟儿飞了啊","狗儿跑了啊","鱼儿游了啊","龙儿腾了啊","猪儿睡了啊",
+  "鸭子叫了啊","神仙来了啊","魔鬼走了啊","佛法无边啊","道理很简单啊",
+  "灵魂在飞翔啊","心情很复杂啊","心痛得很啊","梦想成真了啊","语言很苍白啊",
+  "是的没错啊","个人很渺小啊","在家靠父母啊","极度悲伤啊","等待很漫长啊",
+  "比较才知道啊","到达目的地啊","春天花会开啊","烟雾缭绕啊","要求不高啊",
+  "大麻不能碰啊","吗啊吧啦啊","看见你了啊","心里只有你啊","无数个夜晚啊",
+  "喜欢你没道理啊","听到你声音啊","说明白了啊","就是这样啊","眼睛在说话啊",
+  "可以这样啊","呆子也有爱啊","爷爷你好啊","男人要坚强啊","奶奶辛苦了啊",
+  "姐姐你真美啊","孩子快长大啊","女孩要自爱啊","友情万岁啊","哥哥保护你啊",
+  "仙女下凡了啊","佛祖保佑啊","法律是公正啊","还有谁没来啊","道路很漫长啊",
+  "知道了别说了啊","懂得珍惜啊","魔力无边啊","鸭子水中游啊","猪肉涨价了啊",
+  "猪头猪脑啊","龙飞凤舞啊","狗是人类朋友啊","养鱼很有趣啊","喂鸟要有耐心啊",
+  "鸟儿在歌唱啊","你好吗朋友啊","小时侯的梦啊","不要放弃啊","好人有好报啊",
+  "人民万岁啊","我是中国人啊","我要飞得更高啊","我有一个梦想啊","了解你了啊",
+  "谁是谁非啊","他们都来了啊","他说得对呀","丑女也有爱啊","好的没问题啊",
+  "哪里来的啊","哪个是你的啊","她们都好啊","她在想你啊","乱说一气啊",
+  "乱搞一通啊","纯白的雪啊","痛苦并快乐啊","痛快地哭啊","又来了一个啊",
+  "又是这样啊","之前说好了啊","之后再说吧啊","疯子才这样啊","疯狂的世界啊",
+  "快点走吧啊","快乐每一天啊","着什么急啊","欢迎光临啊","欢声笑语啊",
+  "将来会更好啊","儿童是未来啊","儿女情长啊","的的确确啊","黑白分明啊",
+  "黑色的夜啊","冷水浇头啊","冷清的街啊","绝对不可能啊","绝望的呐喊啊",
+  "生活要继续啊","生命很宝贵啊","生死由命啊","天空很蓝啊","空气很清新啊",
+  "空白的头脑啊","夜晚很安静啊","偷袭珍珠港啊","偷看你一眼啊","恨铁不成钢啊",
+  "渣滓洞烈士啊","暗淡的灯光啊","烦心的事啊","烦恼抛脑后啊","难过的时候啊",
+  "难道不行吗啊","伤心太平洋啊","伤害了别人啊","叫声很凄惨啊","太阳升起了啊",
+  "打人是犯法啊","打架不应该啊","抽风了吧你啊","搞什么鬼啊","搞笑一家人啊",
+  "草地绿油油啊","花草树木啊","象棋很有趣啊","怪事年年有啊","诗歌朗诵啊",
+  "诗人很浪漫啊","雨水淋湿了啊","雨天路滑啊","晓得不晓得啊","星星眨眼睛啊",
+  "星光很灿烂啊","跳舞的女孩啊","水果很新鲜啊","水中捞月啊","情感很丰富啊",
+  "情人节快乐啊","歌唱祖国啊","歌曲很动听啊","歌星很闪亮啊"
 ];
 
 // 去重
 HU_WORDS = HU_WORDS.filter(function(w, i) { return HU_WORDS.indexOf(w) === i; });
 
 function makeDeck() {
-  var d = [];
-  for (var i = 0; i < CARD_CHARS.length; i++) {
-    for (var j = 0; j < 4; j++) {
-      d.push(CARD_CHARS[i]);
-    }
-  }
-  return shuffle(d);
+  return shuffle(CARD_CHARS.slice());
 }
 
 function shuffle(arr) {
@@ -578,7 +672,6 @@ var gameState = {
   canDraw: false,
   canDiscard: false,
   canEat: false,
-  canPong: false,
   canHu: false,
   selectedTile: null,
   lastDiscard: null,
@@ -645,26 +738,32 @@ var peerDc = {};
 var p2pConnected = false;
 var p2pCount = 0;
 
-var RELAY_SERVERS = [
-  "wss://relay.xtrp.cc",
-  "wss://ws.xtrp.io/ws",
-  "wss://relay.code.pub",
-  "wss://ws-relay.free4.in",
-  "wss://relay-ws.xtrp.cc"
-];
+var RELAY_SERVERS = [];
 
 var customSignalingUrl = "";
+
+// 声网 Agora RTM 公共通道（解决跨网络 P2P 打洞失败问题）
+// App ID / Certificate 已 AES-256 加密存储，运行时解密（见下方 decryptAgoraSecrets）
+
+var rtmClient = null;      // 声网 RTM 客户端实例
+var rtmChannel = null;     // 声网 RTM 频道对象（频道名 = mahjong-房间号）
+var rtmLoggedIn = false;   // 是否已登录声网
+var rtmActive = false;     // 声网通道是否可用（加入频道后为 true）
 
 var STUN_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun.stunhardware.com:19302" }
+  { urls: "stun:stun.stunhardware.com:19302" },
+  { urls: "stun:stun.qq.com:3478" },
+  { urls: "stun:stun.aliyun.com:3478" },
+  { urls: "stun:stun.miwifi.com:3478" },
+  { urls: "stun:stun.chat.bilibili.com:3478" }
 ];
 
 function isOnlineMode() {
   return gameState.players.length > 0 &&
     !gameState.players.every(function(p) { return p.id && p.id.indexOf("ai-") === 0; }) &&
-    (p2pConnected || (socket && socket.readyState === WebSocket.OPEN));
+    (p2pConnected || (socket && socket.readyState === WebSocket.OPEN) || peerjsActive || rtmActive);
 }
 
 function isAI(playerId) {
@@ -696,7 +795,6 @@ function handleGameMsg(msg) {
     case "discard": onRemoteDiscard(msg.data); break;
     case "ai-discard": onAIDiscard(msg.data); break;
     case "eat": onRemoteEat(msg.data); break;
-    case "pong": onRemotePong(msg.data); break;
     case "pass-action": onRemotePass(msg.data); break;
     case "hu-propose": onRemoteHuPropose(msg.data); break;
     case "hu-vote": onRemoteHuVote(msg.data); break;
@@ -772,7 +870,6 @@ function startTurnRemote(seat) {
   gameState.canDraw = false;
   gameState.canDiscard = false;
   gameState.canEat = false;
-  gameState.canPong = false;
   gameState.canHu = true;
   gameState.selectedTile = null;
   gameState.lastDiscard = null;
@@ -856,26 +953,6 @@ function onRemoteEat(data) {
   renderPlayerInfo();
   renderActionBar();
   showToast((p ? p.name : "玩家") + " 吃了 " + data.word, 2000);
-}
-
-function onRemotePong(data) {
-  var p = gameState.players.find(function(pl) { return pl.id === data.playerId; });
-  if (p && gameState.otherInfo[p.id]) {
-    gameState.otherInfo[p.id].melds = gameState.otherInfo[p.id].melds || [];
-    gameState.otherInfo[p.id].melds.push({ type: "pong", cards: [data.card, data.card, data.card] });
-    if (gameState.otherInfo[p.id].handCount >= 2) {
-      gameState.otherInfo[p.id].handCount -= 2;
-    }
-  }
-  gameState.lastDiscard = null;
-  gameState.lastDiscardBy = -1;
-  gameState.actionTargetSeat = -1;
-  gameState.currentSeat = p ? p.seat : gameState.currentSeat;
-  gameState.turnPhase = "discard";
-  renderMelds();
-  renderPlayerInfo();
-  renderActionBar();
-  showToast((p ? p.name : "玩家") + " 碰了 " + data.card, 2000);
 }
 
 function onRemotePass(data) {
@@ -1076,7 +1153,7 @@ function endOnlineGame(winnerId, huWords) {
   $("result-body").innerHTML = bodyHtml;
 
   var stats = "<div class='stat'><div class='val'>" + gameState.myHand.length + "</div>手牌</div>" +
-    "<div class='stat'><div class='val'>" + gameState.myMelds.length + "</div>吃碰</div>" +
+    "<div class='stat'><div class='val'>" + gameState.myMelds.length + "</div>吃牌</div>" +
     "<div class='stat'><div class='val'>" + gameState.myDiscards.length + "</div>弃牌</div>" +
     "<div class='stat'><div class='val'>" + gameState.myDraws.length + "</div>摸牌</div>";
   $("result-stats").innerHTML = stats;
@@ -1105,12 +1182,12 @@ function broadcastGameMsg(type, data) {
       sent++;
     }
   });
-  if (sent === 0 && socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
+  if (sent === 0 && isOnlineMode()) {
+    sendSignalToServer({
       type: "broadcast",
       roomId: gameState.roomId,
       payload: msg
-    }));
+    });
   }
 }
 
@@ -1120,6 +1197,11 @@ function broadcastGameMsg(type, data) {
 
 function connectToRelay(retries) {
   retries = retries || 0;
+  // 信令地址留空 → 使用声网 Agora RTM 公共通道（玩家零配置，纯中继不受 NAT 限制）
+  if (!customSignalingUrl) {
+    connectViaAgora();
+    return;
+  }
   if (customSignalingUrl && retries === 0) {
     setConnStatus("连接自定义信令服务器...", "#ffd700");
     var ws = new WebSocket(customSignalingUrl);
@@ -1142,7 +1224,7 @@ function connectToRelay(retries) {
     };
     ws.onerror = function() {
       setConnStatus("自定义信令服务器连接失败", "#e94560");
-      showToast("无法连接自定义信令服务器，请检查地址和ngrok是否启动", 4000);
+      showToast("无法连接自定义信令服务器。可清空「信令服务器地址」框，改用内置公共信令（无需服务器）", 5000);
     };
     ws.onclose = function() {
       setConnStatus("信令断开", "#e94560");
@@ -1213,10 +1295,10 @@ function handleRoomList(players) {
       seat: gameState.players.length, ready: false, isCreator: gameState.isCreator
     });
     gameState.myIndex = gameState.players.length - 1;
-    socket.send(JSON.stringify({
+    sendSignalToServer({
       type: "join-room", roomId: gameState.roomId,
       player: { id: gameState.me.id, name: gameState.me.name, isCreator: gameState.isCreator, seat: gameState.myIndex }
-    }));
+    });
     return;
   }
   gameState.myIndex = me.seat || 0;
@@ -1225,7 +1307,7 @@ function handleRoomList(players) {
       gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
     }
   });
-  if (gameState.players.length >= 2) {
+  if (gameState.players.length >= 2 && connMode !== "agora" && connMode !== "peerjs") {
     setTimeout(function() { tryConnectAllPeers(); }, 1000);
   }
   renderLobby();
@@ -1257,15 +1339,17 @@ function tryConnectAllPeers() {
 
 function tryConnectPeer(targetId, targetName) {
   if (connections[targetId]) return;
+  // PeerJS / 声网 模式采用星型拓扑或全频道广播，不额外建立 mesh
+  if (connMode === "peerjs" || connMode === "agora") return;
   var pcObj = new RTCPeerConnection({ iceServers: STUN_SERVERS });
   connections[targetId] = pcObj;
 
   pcObj.onicecandidate = function(evt) {
     if (evt.candidate) {
-      socket.send(JSON.stringify({
+      sendSignalToServer({
         type: "p2p-ice", roomId: gameState.roomId,
         targetId: targetId, candidate: evt.candidate
-      }));
+      });
     }
   };
   pcObj.onconnectionstatechange = function() {
@@ -1281,10 +1365,10 @@ function tryConnectPeer(targetId, targetName) {
     pcObj.createOffer().then(function(offer) {
       return pcObj.setLocalDescription(offer);
     }).then(function() {
-      socket.send(JSON.stringify({
+      sendSignalToServer({
         type: "p2p-offer", roomId: gameState.roomId,
         targetId: targetId, offer: pcObj.localDescription
-      }));
+      });
     }).catch(function(e) { console.error("Offer error:", e); });
   }
 }
@@ -1295,10 +1379,10 @@ function handleRemoteOffer(msg) {
   connections[msg.fromId] = pcObj;
   pcObj.onicecandidate = function(evt) {
     if (evt.candidate) {
-      socket.send(JSON.stringify({
+      sendSignalToServer({
         type: "p2p-ice", roomId: gameState.roomId,
         targetId: msg.fromId, candidate: evt.candidate
-      }));
+      });
     }
   };
   pcObj.ondatachannel = function(evt) {
@@ -1310,10 +1394,10 @@ function handleRemoteOffer(msg) {
   }).then(function(answer) {
     return pcObj.setLocalDescription(answer);
   }).then(function() {
-    socket.send(JSON.stringify({
+    sendSignalToServer({
       type: "p2p-answer", roomId: gameState.roomId,
       targetId: msg.fromId, answer: pcObj.localDescription
-    }));
+    });
   }).catch(function(e) { console.error("Answer error:", e); });
 }
 
@@ -1356,6 +1440,508 @@ function checkAllConnected() {
   } else {
     setConnStatus("P2P连接中 (" + p2pCount + "/" + totalPeers + ")", "#ffd700");
   }
+}
+
+// ============================================================
+// PeerJS 公共信令模式（信令地址留空时启用，玩家零配置）
+// 拓扑：星型 —— 房主为房间锚点，游戏消息经房主 PeerJS 通道中转
+// ============================================================
+
+var connMode = "websocket";      // "websocket" | "peerjs"
+var peer = null;                 // PeerJS Peer 实例
+var peerReady = false;           // PeerJS peer 是否已注册
+var peerjsActive = false;        // 是否处于 PeerJS 联机模式
+var hostConn = null;             // 房客 → 房主的 PeerJS 连接
+var peerjsLinks = {};            // 房主侧: 房客id -> PeerJS 连接
+
+function peerjsRoomAnchor() {
+  return "mahjong-" + (gameState.roomId || "room");
+}
+
+function isSignalType(t) {
+  return t === "join-room" || t === "room-joined" || t === "room-update" ||
+         t === "player-list" || t === "p2p-offer" || t === "p2p-answer" ||
+         t === "p2p-ice" || t === "room-msg";
+}
+
+// 双模式信令发送：websocket 模式走 socket；peerjs 模式房主转发 / 房客发房主；agora 模式全频道广播
+function sendSignalToServer(msg) {
+  if (connMode === "agora") {
+    publishRtm(msg);
+    return;
+  }
+  if (connMode === "peerjs") {
+    if (gameState.isCreator) {
+      // 房主：处理自身发出的信令
+      if (msg.type === "broadcast") {
+        var payload = msg.payload;
+        var frm = (payload && payload.fromId) ? payload.fromId : gameState.me.id;
+        Object.keys(peerjsLinks).forEach(function(pid) {
+          var c = peerjsLinks[pid];
+          if (c && c.open) {
+            c.send({ type: "room-msg", fromId: frm, payload: payload });
+          }
+        });
+      } else if (msg.type === "join-room") {
+        // 房主无需加入自己的房间
+      } else if (msg.targetId && peerjsLinks[msg.targetId]) {
+        var tc = peerjsLinks[msg.targetId];
+        if (tc.open) {
+          var fwd = { type: msg.type, fromId: msg.fromId || gameState.me.id, targetId: msg.targetId };
+          if (msg.offer !== undefined) fwd.offer = msg.offer;
+          if (msg.answer !== undefined) fwd.answer = msg.answer;
+          if (msg.candidate !== undefined) fwd.candidate = msg.candidate;
+          tc.send(fwd);
+        }
+      }
+    } else {
+      // 房客：发给房主
+      if (hostConn && hostConn.open) hostConn.send(msg);
+    }
+    return;
+  }
+  if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+}
+
+// 把 PeerJS 连接包装成现有 peerDc 兼容通道
+function wrapPeerjsChannel(conn, peerId) {
+  var ch = {
+    readyState: "connecting",
+    send: function(str) {
+      try { conn.send(JSON.parse(str)); } catch (e) {}
+    },
+    onopen: null, onclose: null, onerror: null, onmessage: null,
+    _conn: conn
+  };
+  conn.on("open", function() {
+    ch.readyState = "open";
+    if (ch.onopen) ch.onopen();
+  });
+  conn.on("data", function(data) {
+    var obj = data;
+    if (typeof data === "string") { try { obj = JSON.parse(data); } catch (e) { return; } }
+    if (!obj || !obj.type) return;
+    if (isSignalType(obj.type)) {
+      handlePeerjsSignal(obj);
+    } else {
+      // 房主中转：把房客游戏消息转发给其他房客
+      if (connMode === "peerjs" && gameState.isCreator &&
+          obj.fromId && obj.fromId !== gameState.me.id) {
+        Object.keys(peerDc).forEach(function(id) {
+          if (id !== obj.fromId && peerDc[id] && peerDc[id].readyState === "open") {
+            peerDc[id].send(JSON.stringify(obj));
+          }
+        });
+      }
+      if (ch.onmessage) ch.onmessage({ data: JSON.stringify(obj) });
+    }
+  });
+  conn.on("close", function() {
+    ch.readyState = "closed";
+    if (ch.onclose) ch.onclose();
+  });
+  conn.on("error", function(e) { if (ch.onerror) ch.onerror(e); });
+  return ch;
+}
+
+// PeerJS 信令消息分发（仅 PeerJS 模式通道）
+function handlePeerjsSignal(msg) {
+  switch (msg.type) {
+    case "join-room":
+      if (gameState.isCreator && connMode === "peerjs") handlePeerjsJoinRoom(msg);
+      break;
+    case "room-joined":
+    case "room-update":
+    case "player-list":
+      handleRoomList(msg.players || []);
+      break;
+    case "room-msg":
+      if (msg.fromId !== gameState.me.id) handleGameMsg(msg.payload);
+      break;
+    case "p2p-offer": handleRemoteOffer(msg); break;
+    case "p2p-answer": handleRemoteAnswer(msg); break;
+    case "p2p-ice": handleRemoteIce(msg); break;
+  }
+}
+
+// ============================================================
+// 声网 Agora RTM 公共通道（信令地址留空时的默认联机方式）
+// 纯中继广播，不受 NAT 打洞限制，手机跨网络也能联机
+// ============================================================
+
+// ============================================================
+// 声网凭证（AES-256-CBC 加密存储，运行时解密；避免明文出现在代码中）
+// 真正的安全方案是放后端云函数，但个人项目 AES 混淆已足够
+// ============================================================
+var AGORA_KEY_B64 = "YOUR_AES_KEY_BASE64";
+var AGORA_IV_B64  = "YOUR_AES_IV_BASE64";
+var AGORA_SEC_B64 = "YOUR_ENCRYPTED_SECRETS_BASE64";
+var _agoraSecretsCache = null;
+function b64ToU8(b64) {
+  var bin = atob(b64), out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function decryptAgoraSecrets() {
+  if (_agoraSecretsCache) return _agoraSecretsCache;
+  var key = await crypto.subtle.importKey('raw', b64ToU8(AGORA_KEY_B64), {name:'AES-CBC'}, false, ['decrypt']);
+  var plain = await crypto.subtle.decrypt({name:'AES-CBC', iv: b64ToU8(AGORA_IV_B64)}, key, b64ToU8(AGORA_SEC_B64));
+  _agoraSecretsCache = JSON.parse(new TextDecoder().decode(plain));
+  return _agoraSecretsCache;
+}
+
+// ---- CRC32 ----
+var _crc32Table = (function() {
+  var t = new Uint32Array(256);
+  for (var i = 0; i < 256; i++) {
+    var c = i;
+    for (var j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+function crc32Str(str) {
+  var bytes = new TextEncoder().encode(str), crc = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) crc = _crc32Table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// ---- 字节缓冲 ----
+function ByteBuf() { this.buf = new Uint8Array(512); this.pos = 0; }
+ByteBuf.prototype.ensure = function(n) {
+  if (this.pos + n > this.buf.length) {
+    var nb = new Uint8Array(this.buf.length * 2); nb.set(this.buf); this.buf = nb;
+  }
+};
+ByteBuf.prototype.u16 = function(v) { this.ensure(2); this.buf[this.pos]=v&0xFF; this.buf[this.pos+1]=(v>>>8)&0xFF; this.pos+=2; return this; };
+ByteBuf.prototype.u32 = function(v) { this.ensure(4); this.buf[this.pos]=v&0xFF; this.buf[this.pos+1]=(v>>>8)&0xFF; this.buf[this.pos+2]=(v>>>16)&0xFF; this.buf[this.pos+3]=(v>>>24)&0xFF; this.pos+=4; return this; };
+ByteBuf.prototype.bytes = function(b) { this.u16(b.length); this.ensure(b.length); this.buf.set(b, this.pos); this.pos+=b.length; return this; };
+ByteBuf.prototype.str = function(s) { return this.bytes(new TextEncoder().encode(s)); };
+ByteBuf.prototype.mapU32 = function(map) {
+  var keys = Object.keys(map); this.u16(keys.length);
+  for (var i = 0; i < keys.length; i++) { this.u16(parseInt(keys[i])); this.u32(map[keys[i]]); }
+  return this;
+};
+ByteBuf.prototype.pack = function() { return this.buf.slice(0, this.pos); };
+
+function concatBytes(arr) {
+  var total = 0, i; for (i = 0; i < arr.length; i++) total += arr[i].length;
+  var out = new Uint8Array(total), pos = 0;
+  for (i = 0; i < arr.length; i++) { out.set(arr[i], pos); pos += arr[i].length; }
+  return out;
+}
+function u8ToB64(bytes) {
+  var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+async function hmacSha256(keyStr, msgBytes) {
+  var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(keyStr), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, msgBytes));
+}
+
+// 生成声网 RTM Token（浏览器纯 JS 实现，无需后端）
+async function generateRtmToken(appId, appCert, uid, expireSec) {
+  var kRtmLogin = 1000;
+  var salt = (Math.random() * 0xFFFFFFFF) >>> 0;
+  var ts = Math.floor(Date.now() / 1000) + (expireSec || 86400);
+  var messages = {}; messages[kRtmLogin] = ts;
+  var mBuf = new ByteBuf();
+  mBuf.u32(salt).u32(ts).mapU32(messages);
+  var m = mBuf.pack();
+  // RTM: channelName = uid, uidStr = ""
+  var toSign = concatBytes([new TextEncoder().encode(appId), new TextEncoder().encode(uid), new TextEncoder().encode(""), m]);
+  var sig = await hmacSha256(appCert, toSign);
+  var crcCh = crc32Str(uid);
+  var crcUid = crc32Str("");
+  var cBuf = new ByteBuf();
+  cBuf.bytes(sig).u32(crcCh).u32(crcUid).bytes(m);
+  return "006" + appId + u8ToB64(cBuf.pack());
+}
+
+// 发布消息到 RTM 频道（广播给房间内所有玩家）
+function publishRtm(msg) {
+  if (!rtmChannel || !rtmLoggedIn) return;
+  var out = msg;
+  if (msg && msg.type === "broadcast") {
+    out = { type: "room-msg", fromId: (msg.fromId || gameState.me.id), payload: msg.payload };
+  }
+  try {
+    rtmChannel.sendMessage({ text: JSON.stringify(out) }).catch(function(err) {
+      console.error("RTM send error:", err);
+    });
+  } catch (e) { console.error("RTM send exception:", e); }
+}
+
+// RTM 频道消息 → 房间状态同步（声网模式）
+function handleAgoraSignal(msg, senderId) {
+  switch (msg.type) {
+    case "join-room":
+      // 有人加入房间：加入列表并广播最新完整列表
+      var p = msg.player;
+      if (!p || !p.id || p.id === gameState.me.id) return;
+      var existing = gameState.players.find(function(pl) { return pl.id === p.id; });
+      if (!existing) {
+        gameState.players.push({ id: p.id, name: p.name, seat: gameState.players.length, ready: false, isCreator: false });
+        gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+      }
+      publishRtm({ type: "room-update", players: gameState.players.slice() });
+      renderLobby();
+      updateStartBtn();
+      showToast(p.name + " 加入了房间", 2500);
+      break;
+    case "room-update":
+    case "room-joined":
+    case "player-list":
+      handleRoomList(msg.players || []);
+      break;
+    case "room-msg":
+      if (msg.fromId !== gameState.me.id) handleGameMsg(msg.payload);
+      break;
+  }
+}
+
+// 接入声网 RTM 公共通道（信令地址留空时）
+async function connectViaAgora() {
+  connMode = "agora";
+  setConnStatus("连接声网公共通道...", "#ffd700");
+  if (typeof AgoraRTM === "undefined") {
+    setConnStatus("声网 SDK 加载失败", "#e94560");
+    showToast("声网 SDK 加载失败，请刷新页面重试", 4000);
+    return;
+  }
+  var secrets;
+  try {
+    secrets = await decryptAgoraSecrets();
+  } catch (e) {
+    console.error("Agora secrets decrypt error:", e);
+    setConnStatus("声网凭证解密失败", "#e94560");
+    showToast("声网凭证解密失败，请刷新页面重试", 4000);
+    return;
+  }
+  try {
+    rtmClient = AgoraRTM.createInstance(secrets.appId);
+  } catch (e) {
+    console.error("RTM init error:", e);
+    setConnStatus("声网初始化失败", "#e94560");
+    showToast("声网初始化失败，请检查网络后重试", 4000);
+    return;
+  }
+  rtmClient.on("ConnectionStateChanged", function(state, reason) {
+    if (state === "CONNECTED") {
+      rtmActive = true;
+      setConnStatus("声网通道已连接 · 房间 " + gameState.roomId, "#4ade80");
+    } else if (state === "DISCONNECTED") {
+      rtmActive = false;
+      setConnStatus("声网通道已断开", "#e94560");
+    }
+  });
+  rtmClient.on("MemberLeft", function(memberId) {
+    // 成员离开频道：从房间列表移除
+    var idx = gameState.players.findIndex(function(pl) { return pl.id === memberId; });
+    if (idx >= 0 && !isAI(memberId)) {
+      gameState.players.splice(idx, 1);
+      publishRtm({ type: "room-update", players: gameState.players.slice() });
+      renderLobby();
+      updateStartBtn();
+    }
+  });
+  // 生成 RTM Token（AES 解密后的 Certificate + 当前用户 ID）
+  var rtmToken;
+  try {
+    rtmToken = await generateRtmToken(secrets.appId, secrets.appCert, gameState.me.id, 86400);
+  } catch (e) {
+    console.error("RTM token generate error:", e);
+    setConnStatus("声网 Token 生成失败", "#e94560");
+    showToast("声网 Token 生成失败，请刷新页面重试", 4000);
+    return;
+  }
+  rtmClient.login({ uid: gameState.me.id, token: rtmToken }).then(function() {
+    rtmLoggedIn = true;
+    var chName = "mahjong-" + gameState.roomId;
+    rtmChannel = rtmClient.createChannel(chName);
+    rtmChannel.on("ChannelMessage", function(msg, senderId) {
+      if (!msg || senderId === gameState.me.id) return;
+      try {
+        var obj = JSON.parse(msg.text);
+        if (!obj || !obj.type) return;
+        if (isSignalType(obj.type)) {
+          handleAgoraSignal(obj, senderId);
+        } else if (obj.type === "room-msg") {
+          if (obj.fromId !== gameState.me.id) handleGameMsg(obj.payload);
+        } else if (obj.fromId !== gameState.me.id) {
+          handleGameMsg(obj);
+        }
+      } catch (e) { console.error("RTM msg parse:", e); }
+    });
+    rtmChannel.join().then(function() {
+      rtmActive = true;
+      setConnStatus("声网通道已就绪 · 房间 " + gameState.roomId, "#4ade80");
+      if (gameState.isCreator) {
+        // 房主：广播自己的房间列表，方便后来者同步
+        publishRtm({ type: "room-update", players: gameState.players.slice() });
+      } else {
+        // 房客：广播加入
+        publishRtm({
+          type: "join-room", roomId: gameState.roomId,
+          player: { id: gameState.me.id, name: gameState.me.name, isCreator: false, seat: gameState.myIndex }
+        });
+      }
+      if (gameState.gameStarted && !gameState.gameOver) {
+        broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+      }
+    }).catch(function(err) {
+      console.error("RTM join channel error:", err);
+      setConnStatus("加入声网房间失败", "#e94560");
+      showToast("加入声网房间失败，请重试", 3500);
+    });
+  }).catch(function(err) {
+    console.error("RTM login error:", err);
+    setConnStatus("声网登录失败", "#e94560");
+    showToast("声网登录失败，请确认 App ID 配置正确", 4000);
+  });
+}
+
+// 接入 PeerJS 公共信令（信令地址留空时）
+function connectViaPeerJS() {
+  connMode = "peerjs";
+  setConnStatus("连接 PeerJS 公共信令...", "#ffd700");
+  var anchor = gameState.isCreator ? peerjsRoomAnchor() : gameState.me.id;
+  try {
+    peer = new Peer(anchor, { debug: 0, config: { iceServers: STUN_SERVERS } });
+  } catch (e) {
+    console.error("PeerJS init error:", e);
+    setConnStatus("PeerJS 初始化失败", "#e94560");
+    showToast("公共信令初始化失败，可填写自建信令地址重试", 4000);
+    return;
+  }
+  peer.on("open", function(id) {
+    peerReady = true;
+    if (gameState.isCreator) {
+      peerjsActive = true;
+      setConnStatus("公共信令已就绪 · 房间 " + gameState.roomId, "#4ade80");
+    } else {
+      setConnStatus("公共信令已连接，寻找房间...", "#ffd700");
+      setTimeout(connectToHostPeer, 400);
+    }
+  });
+  peer.on("connection", function(conn) {
+    onHostConnection(conn);
+  });
+  peer.on("error", function(err) {
+    console.error("PeerJS error:", err);
+    if (err && err.type === "unavailable-id" && gameState.isCreator) {
+      setConnStatus("房间号被占用，请重新建房", "#e94560");
+      showToast("该房间号已被占用，请重新创建房间", 4000);
+    } else if (err && err.type === "peer-unavailable") {
+      setConnStatus("未找到该房间", "#e94560");
+      showToast("未找到房间 " + gameState.roomId + "，请确认房间号", 4000);
+    } else if (err && (err.type === "network" || err.type === "socket-error" || err.type === "socket-closed" || err.type === "server-error" || err.type === "socket-disconnected")) {
+      setConnStatus("无法连接公共信令服务器", "#e94560");
+      showToast("无法连接公共信令服务器（海外服务器在你的网络下不通）。可让房主填写自建信令地址，或更换网络后重试", 5000);
+    } else if (err && err.type === "webrtc-error") {
+      setConnStatus("P2P 建立失败", "#e94560");
+      showToast("无法与对方建立直连（网络 NAT 限制）。建议手机与房主使用同一 Wi-Fi，或让房主改用自建信令", 5000);
+    }
+  });
+  peer.on("disconnected", function() {
+    setConnStatus("公共信令断开，重连中...", "#e94560");
+    if (peer && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+  });
+  peer.on("close", function() {
+    setConnStatus("公共信令已关闭", "#e94560");
+    peerjsActive = false;
+  });
+}
+
+// 房客：连接房主锚点
+function connectToHostPeer() {
+  if (!peer || !peerReady) return;
+  var conn = peer.connect(peerjsRoomAnchor(), { reliable: true });
+  hostConn = conn;
+  var ch = wrapPeerjsChannel(conn, gameState.roomId);
+  // 超时检测：P2P 打洞失败时给用户明确提示
+  var pendingTimer = setTimeout(function() {
+    if (ch.readyState !== "open") {
+      setConnStatus("与房主连接超时", "#e94560");
+      showToast("无法与房主建立直连（网络 NAT 限制）。建议手机与房主使用同一 Wi-Fi，或让房主改用自建信令服务器", 6000);
+    }
+  }, 15000);
+  ch.onmessage = function(e) {
+    try { handleGameMsg(JSON.parse(e.data)); } catch (err) { console.error("PeerJS msg parse:", err); }
+  };
+  ch.onopen = function() {
+    clearTimeout(pendingTimer);
+    peerjsActive = true;
+    p2pCount++;
+    checkAllConnected();
+    setConnStatus("已加入房间 " + gameState.roomId, "#4ade80");
+    sendSignalToServer({
+      type: "join-room",
+      roomId: gameState.roomId,
+      player: { id: gameState.me.id, name: gameState.me.name, isCreator: false, seat: gameState.myIndex }
+    });
+    if (gameState.gameStarted && !gameState.gameOver) {
+      broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+    }
+  };
+  ch.onclose = function() {
+    clearTimeout(pendingTimer);
+    setConnStatus("与房主连接断开", "#e94560");
+    p2pConnected = false;
+    peerjsActive = false;
+    showToast("与房主的连接已断开（公共信令模式暂不支持自动迁移房主）", 3500);
+  };
+  peerDc[gameState.roomId] = ch;
+}
+
+// 房主：接受房客连接
+function onHostConnection(conn) {
+  var pid = conn.peer;
+  if (!pid || pid === gameState.me.id) { try { conn.close(); } catch (e) {} return; }
+  peerjsLinks[pid] = conn;
+  var ch = wrapPeerjsChannel(conn, pid);
+  ch.onmessage = function(e) {
+    try { handleGameMsg(JSON.parse(e.data)); } catch (err) { console.error("PeerJS msg parse:", err); }
+  };
+  ch.onopen = function() {
+    p2pCount++;
+    checkAllConnected();
+  };
+  ch.onclose = function() {
+    delete peerjsLinks[pid];
+    if (peerDc[pid]) delete peerDc[pid];
+    p2pConnected = false;
+    // 房客离开，广播 player-left
+    if (gameState.gameStarted && !gameState.gameOver) {
+      broadcastGameMsg("player-left", { id: pid });
+    }
+  };
+  peerDc[pid] = ch;
+}
+
+// 房主：处理房客 join-room（PeerJS 模式）
+function handlePeerjsJoinRoom(msg) {
+  var p = msg.player;
+  if (!p || !p.id || p.id === gameState.me.id) return;
+  var existing = gameState.players.find(function(pl) { return pl.id === p.id; });
+  if (!existing) {
+    gameState.players.push({ id: p.id, name: p.name, seat: gameState.players.length, ready: false, isCreator: false });
+    gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+  }
+  gameState.players.forEach(function(pl, i) { pl.seat = i; });
+  gameState.myIndex = gameState.players.findIndex(function(pl) { return pl.id === gameState.me.id; });
+
+  // 回完整房间列表给新房客
+  var conn = peerjsLinks[p.id];
+  if (conn && conn.open) {
+    conn.send({ type: "room-joined", players: gameState.players.slice() });
+  }
+  // 广播新成员给其他房客（更新各自房间列表）
+  broadcastGameMsg("player-joined", { player: gameState.players.find(function(pl) { return pl.id === p.id; }) });
+  renderLobby();
+  updateStartBtn();
+  setConnStatus("房间人数 " + gameState.players.length + "/4", "#4ade80");
+  showToast(p.name + " 加入了房间", 2500);
 }
 
 // ============================================================
@@ -1498,6 +2084,7 @@ function createRoom() {
   localStorage.setItem("mahjong_nickname", nick);
   customSignalingUrl = ($("signaling-url") ? $("signaling-url").value.trim() : "") || "";
   if (customSignalingUrl) localStorage.setItem("mahjong_signaling_url", customSignalingUrl);
+  else localStorage.removeItem("mahjong_signaling_url");
 
   gameState.roomId = generateRoomId();
   gameState.isCreator = true;
@@ -1512,12 +2099,51 @@ function createRoom() {
   $("start-game-btn").style.display = "";
   $("start-game-btn").textContent = "开始游戏 (1/4，不足补AI)";
   $("start-game-btn").disabled = false;
+  $("share-link-btn").style.display = "";
   $("warning-box").style.display = "";
   $("room-desc").style.display = "";
   renderLobby();
   setConnStatus("房主 · 等待连接...", "#4ade80");
   showToast("房间已创建：" + gameState.roomId + "，不足4人将自动补AI", 3000);
   connectToRelay();
+}
+
+function shareRoomLink() {
+  var nick = gameState.me ? gameState.me.name : "玩家";
+  var signaling = customSignalingUrl || "（留空使用内置公共服务器）";
+  var roomId = gameState.roomId || "";
+  var siteUrl = window.location.origin + window.location.pathname;
+  var text = nick + "邀请你来玩白色失明文字麻将\n" +
+    "请复制此段话后使用浏览器访问：\n" +
+    siteUrl + "\n" +
+    "信令服务器地址：" + signaling + "\n" +
+    "房间号：" + roomId;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast("分享链接已复制到剪贴板", 2500);
+    }).catch(function() {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showToast("分享链接已复制到剪贴板", 2500);
+  } catch(e) {
+    showToast("复制失败，请手动复制", 2500);
+  }
+  document.body.removeChild(ta);
 }
 
 function joinRoomByInput() {
@@ -1528,6 +2154,7 @@ function joinRoomByInput() {
   localStorage.setItem("mahjong_nickname", nick);
   customSignalingUrl = ($("signaling-url") ? $("signaling-url").value.trim() : "") || "";
   if (customSignalingUrl) localStorage.setItem("mahjong_signaling_url", customSignalingUrl);
+  else localStorage.removeItem("mahjong_signaling_url");
 
   // 检查是否有保存的对局（重连）
   var saved = getSavedGame(rid);
@@ -1578,13 +2205,15 @@ function showScreen(name) {
 }
 
 function toggleChat() {
-  var panel = $("chat-panel"), fab = $("chat-fab");
+  var panel = $("chat-panel"), fab = $("chat-fab"), rules = $("rules-btn-game");
   if (panel.style.display === "none") {
     panel.style.display = "flex";
     if (fab) fab.style.display = "none";
+    if (rules) rules.style.display = "none";
   } else {
     panel.style.display = "none";
     if (fab) fab.style.display = "block";
+    if (rules) rules.style.display = "block";
   }
 }
 
@@ -1622,7 +2251,6 @@ function resetGameState() {
   gameState.canDraw = false;
   gameState.canDiscard = false;
   gameState.canEat = false;
-  gameState.canPong = false;
   gameState.canHu = false;
   gameState.selectedTile = null;
   gameState.lastDiscard = null;
@@ -1732,11 +2360,11 @@ function startMixedGame() {
     deck: deck, remaining: deck.length, firstSeat: 0,
     hands: hands, players: gameState.players
   };
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
+  if (isOnlineMode() || connMode === "peerjs") {
+    sendSignalToServer({
       type: "broadcast", roomId: gameState.roomId,
       payload: { type: "start-game", fromId: gameState.me.id, data: startData }
-    }));
+    });
   }
 }
 
@@ -1792,12 +2420,11 @@ function discardTile() {
   }
 }
 
-// 进入等待吃碰胡阶段（下家决策）
+// 进入等待吃胡阶段（下家决策）
 function enterWaitingAction(targetSeat, card) {
   gameState.turnPhase = "waiting-action";
   gameState.actionTargetSeat = targetSeat;
   gameState.canEat = false;
-  gameState.canPong = false;
   gameState.canHu = true;
 
   var targetPlayer = gameState.players[targetSeat];
@@ -1809,9 +2436,8 @@ function enterWaitingAction(targetSeat, card) {
       setTimeout(function() { aiDecideAction(targetSeat, card); }, 800);
     }
   } else if (targetSeat === gameState.myIndex) {
-    // 自己是下家，显示吃碰胡过按钮
+    // 自己是下家，显示吃胡过按钮
     gameState.canEat = true;
-    gameState.canPong = true;
     renderActionBar();
   }
   // 其他真人玩家可以点胡（canHu已设为true）
@@ -1893,7 +2519,7 @@ function aiDecideAction(seat, card) {
   var aiHand = gameState.aiHands[player.id] || [];
 
   setTimeout(function() {
-    // 优先级：胡 > 碰 > 吃 > 过
+    // 优先级：胡 > 吃 > 过
     // 1. 检查能否胡（加上打出的牌）
     var testHand = aiHand.concat([card]);
     if (canHu(testHand)) {
@@ -1913,33 +2539,7 @@ function aiDecideAction(seat, card) {
       return;
     }
 
-    // 2. 检查能否碰（有2张同字），50%概率碰
-    var pongCount = aiHand.filter(function(c) { return c === card; }).length;
-    if (pongCount >= 2 && Math.random() < 0.5) {
-      var removed = 0;
-      aiHand = aiHand.filter(function(c) {
-        if (c === card && removed < 2) { removed++; return false; }
-        return true;
-      });
-      gameState.aiHands[player.id] = aiHand;
-      gameState.otherInfo[player.id].melds.push({ type: "pong", cards: [card, card, card] });
-      gameState.otherInfo[player.id].handCount = aiHand.length;
-      gameState.lastDiscard = null;
-      gameState.lastDiscardBy = -1;
-      gameState.actionTargetSeat = -1;
-      gameState.currentSeat = seat;
-      gameState.turnPhase = "discard";
-      renderMelds();
-      renderPlayerInfo();
-      renderDiscards();
-      showToast(player.name + " 碰了 " + card, 2000);
-      broadcastGameMsg("pong", { playerId: player.id, card: card });
-      // AI碰完后出牌
-      setTimeout(function() { aiDiscardAfterMeld(seat); }, 800);
-      return;
-    }
-
-    // 3. 检查能否吃，30%概率吃
+    // 2. 检查能否吃，30%概率吃
     var eatOptions = getEatOptions(aiHand, card);
     if (eatOptions.length > 0 && Math.random() < 0.3) {
       var word = eatOptions[Math.floor(Math.random() * eatOptions.length)];
@@ -1978,7 +2578,7 @@ function aiDecideAction(seat, card) {
   }, 600);
 }
 
-// AI吃碰后出牌
+// AI吃后出牌
 function aiDiscardAfterMeld(seat) {
   if (!gameState.isCreator) return;
   var player = gameState.players[seat];
@@ -2214,7 +2814,6 @@ function passAction() {
   showToast("过", 1000);
   var nextSeat = gameState.actionTargetSeat;
   gameState.canEat = false;
-  gameState.canPong = false;
   gameState.canHu = false;
   gameState.lastDiscard = null;
   gameState.lastDiscardBy = -1;
@@ -2272,7 +2871,6 @@ function confirmEat(word) {
   gameState.myHand = temp;
   gameState.myMelds.push({ type: "eat", cards: word.split(""), source: card });
   gameState.canEat = false;
-  gameState.canPong = false;
   gameState.canHu = true;
   gameState.lastDiscard = null;
   gameState.lastDiscardBy = -1;
@@ -2290,40 +2888,6 @@ function confirmEat(word) {
     broadcastGameMsg("eat", {
       playerId: gameState.me.id, word: word, card: card
     });
-  }
-}
-
-function attemptPong() {
-  if (gameState.turnPhase !== "waiting-action") return;
-  if (gameState.actionTargetSeat !== gameState.myIndex) return;
-  if (!gameState.lastDiscard) return;
-  var count = gameState.myHand.filter(function(c) { return c === gameState.lastDiscard; }).length;
-  if (count < 2) { showToast("没有足够的牌碰", 1500); return; }
-
-  var card = gameState.lastDiscard;
-  var removed = 0;
-  gameState.myHand = gameState.myHand.filter(function(c) {
-    if (c === card && removed < 2) { removed++; return false; }
-    return true;
-  });
-  gameState.myMelds.push({ type: "pong", cards: [card, card, card] });
-  gameState.canEat = false;
-  gameState.canPong = false;
-  gameState.canHu = true;
-  gameState.lastDiscard = null;
-  gameState.lastDiscardBy = -1;
-  gameState.actionTargetSeat = -1;
-  gameState.turnPhase = "discard";
-  gameState.canDiscard = true;
-  gameState.currentSeat = gameState.myIndex;
-
-  renderHand();
-  renderMelds();
-  renderActionBar();
-  showToast("碰! " + card + " x3", 2000);
-
-  if (isOnlineMode()) {
-    broadcastGameMsg("pong", { playerId: gameState.me.id, card: card });
   }
 }
 
@@ -2475,7 +3039,7 @@ function renderActionBar() {
 
   if (gameState.gameOver) return;
 
-  // 等待吃碰胡阶段
+  // 等待吃胡阶段
   if (gameState.turnPhase === "waiting-action") {
     var isTarget = gameState.actionTargetSeat === gameState.myIndex;
     if (isTarget) {
@@ -2488,15 +3052,6 @@ function renderActionBar() {
       eatBtn.disabled = !canEatNow;
       eatBtn.onclick = attemptEat;
       bar.appendChild(eatBtn);
-      // 碰牌按钮（检查是否有2张同字）
-      var pongCount = gameState.myHand.filter(function(c) { return c === gameState.lastDiscard; }).length;
-      var canPongNow = gameState.canPong && pongCount >= 2;
-      var pongBtn = document.createElement("button");
-      pongBtn.className = "action-btn secondary";
-      pongBtn.textContent = "碰";
-      pongBtn.disabled = !canPongNow;
-      pongBtn.onclick = attemptPong;
-      bar.appendChild(pongBtn);
       // 胡牌按钮
       var huBtn = document.createElement("button");
       huBtn.className = "action-btn gold";
@@ -2704,10 +3259,13 @@ function init() {
   $("create-room-btn").onclick = createRoom;
   $("join-room-btn").onclick = joinRoomByInput;
   $("start-game-btn").onclick = startGameClicked;
+  $("share-link-btn").onclick = shareRoomLink;
   $("send-msg").onclick = sendMessage;
   $("chat-input").onkeypress = function(e) { if (e.key === "Enter") sendMessage(); };
   $("chat-toggle").onclick = toggleChat;
   $("chat-fab").onclick = toggleChat;
+  // 聊天面板默认隐藏
+  $("chat-panel").style.display = "none";
   $("btn-cancel-hu").onclick = hideHuConfirm;
   $("btn-restart").onclick = restartGameClicked;
   $("btn-back-lobby").onclick = backToLobbyClicked;
@@ -2748,7 +3306,33 @@ function init() {
     };
   }
 
+  // 剪贴板自动识别分享链接
+  tryImportFromClipboard();
+
   renderLobby();
+}
+
+function tryImportFromClipboard() {
+  if (!navigator.clipboard || !navigator.clipboard.readText) return;
+  navigator.clipboard.readText().then(function(text) {
+    if (!text || text.indexOf("白色失明文字麻将") === -1) return;
+    var signalingMatch = text.match(/信令服务器地址[：:]\s*(.+)/);
+    var roomMatch = text.match(/房间号[：:]\s*(.+)/);
+    var filled = false;
+    if (signalingMatch && signalingMatch[1] && signalingMatch[1].indexOf("留空") === -1) {
+      var sig = signalingMatch[1].trim();
+      if ($("signaling-url")) $("signaling-url").value = sig;
+      filled = true;
+    }
+    if (roomMatch && roomMatch[1]) {
+      var rid = roomMatch[1].trim();
+      if ($("room-id-input")) $("room-id-input").value = rid;
+      filled = true;
+    }
+    if (filled) {
+      showToast("已从剪贴板自动填入房间信息", 2500);
+    }
+  }).catch(function(){});
 }
 
 init();

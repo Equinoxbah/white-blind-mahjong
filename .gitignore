@@ -1,9 +1,10 @@
-﻿node_modules/
-*.py
+node_modules/
 screen*.png
 user_upload*.png
 test_*.js
 check_*.js
+check_remaining.py
+test_signaling_py.py
 verify_*.py
 patch_*.py
 multi_debug.py
