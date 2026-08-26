@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>白色失明文字麻将</title>
+<style>
+:root{
+  --bg:#1a1a2e;
+  --table:#0f3460;
+  --panel:#16213e;
+  --accent:#e94560;
+  --gold:#ffd700;
+  --text:#eaeaea;
+  --muted:#8899aa;
+  --tile-bg:#2d2d44;
+  --tile-border:#3d3d5c;
+  --my-turn:#4ade80;
+  --shadow:0 4px 12px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh;width:100vw}
+.screen{display:none;flex-direction:column;height:100%;width:100%}
+.screen.active{display:flex}
+.lobby-card{background:var(--panel);border:1px solid var(--tile-border);border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:var(--shadow);margin:auto}
+.lobby-title{text-align:center;margin-bottom:24px}
+.lobby-title h1{font-size:28px;color:var(--gold)}
+.lobby-title p{color:var(--muted);font-size:14px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;margin-bottom:6px;font-size:14px;color:var(--muted)}
+.form-group input{padding:12px 16px;border-radius:8px;border:1px solid var(--tile-border);background:var(--bg);color:var(--text);font-size:16px;outline:none;width:100%}
+.form-group input:focus{border-color:var(--accent)}
+.btn{padding:14px 24px;border-radius:8px;border:none;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover:not(:disabled){background:#ff5a7a}
+.btn-secondary{background:#5a5a7a;color:var(--text)}
+.btn-secondary:hover:not(:disabled){background:#6a6a8a}
+.btn-gold{background:var(--gold);color:#1a1a2e}
+.btn-gold:hover:not(:disabled){background:#ffe066}
+.warning-box{background:rgba(233,69,96,.15);border:1px solid var(--accent);border-radius:8px;padding:12px;margin-top:16px;font-size:13px;color:#ffaaaa;line-height:1.6}
+.warning-box strong{color:#ffd7a0}
+.room-desc{background:rgba(255,215,0,.1);border:1px solid var(--gold);border-radius:8px;padding:12px;margin-top:16px;font-size:13px;color:#ffd7a0;line-height:1.6}
+.player-list{margin-top:16px}
+.player-item{display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg);border-radius:8px;margin-bottom:8px}
+.player-dot{width:10px;height:10px;border-radius:50%}
+.player-dot.ready{background:var(--my-turn);box-shadow:0 0 8px var(--my-turn)}
+.player-dot.notready{background:var(--muted)}
+.player-tag{font-size:11px;padding:2px 6px;border-radius:4px;margin-left:6px}
+.player-tag.ai{background:rgba(74,222,128,.2);color:var(--my-turn)}
+.game-table{flex:1;position:relative;background:radial-gradient(ellipse at center,#1a2a4a 0%,var(--table) 100%)}
+.player-area{position:absolute;transition:all .3s}
+.player-area.bottom{bottom:16px;left:50%;transform:translateX(-50%);width:90%;max-width:1000px;text-align:center}
+.player-area.top{top:16px;left:50%;transform:translateX(-50%);width:90%;max-width:1000px;text-align:center}
+.player-area.left{left:16px;top:50%;transform:translateY(-50%);height:60%}
+.player-area.right{right:16px;top:50%;transform:translateY(-50%);height:60%}
+.player-header{display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:6px}
+.player-name{font-size:14px;color:var(--muted)}
+.player-name.me{color:var(--gold)}
+.player-name.active{color:var(--my-turn);text-shadow:0 0 8px var(--my-turn)}
+.player-status{font-size:12px;color:var(--muted)}
+.tile{background:var(--tile-bg);border:2px solid var(--tile-border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1;user-select:none;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.tile:hover:not(.discarded):not(.melded){transform:translateY(-4px);box-shadow:0 6px 16px rgba(0,0,0,.4);border-color:var(--accent)}
+.tile.selected{transform:translateY(-12px);border-color:var(--gold);box-shadow:0 8px 20px rgba(255,215,0,.4)}
+.tile.discarded{opacity:.5;cursor:not-allowed}
+.tile.melded{opacity:.7;cursor:not-allowed}
+.tile.special{color:var(--gold);text-shadow:0 0 8px rgba(255,215,0,.6)}
+.hand-area{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;min-height:60px}
+.hand-area .tile{width:48px;height:64px;font-size:22px}
+.meld-group{display:flex;gap:2px;background:rgba(0,0,0,.2);padding:4px 6px;border-radius:6px;margin:2px}
+.meld-area{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;min-height:56px}
+.discard-area{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;min-height:40px;max-height:120px;overflow-y:auto}
+.discard-area .tile{width:32px;height:42px;font-size:14px}
+.discard-area .tile.last-discard{border-color:var(--gold);box-shadow:0 0 12px var(--gold)}
+.center-area{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:16px}
+#turn-indicator{font-size:16px;font-weight:600;text-align:center}
+.remaining-tiles{background:rgba(0,0,0,.5);border:1px solid var(--tile-border);border-radius:12px;padding:16px 24px;text-align:center;cursor:pointer;transition:all .2s}
+.remaining-tiles:hover{border-color:var(--gold)}
+.remaining-tiles .count{font-size:36px;font-weight:700;color:var(--gold);font-family:monospace}
+.remaining-tiles .label{font-size:12px;color:var(--muted)}
+.action-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10}
+.action-btn{padding:12px 28px;font-size:16px;font-weight:700;border-radius:8px;border:none;cursor:pointer;min-width:80px;transition:all .2s}
+.action-btn:disabled{opacity:.4;cursor:not-allowed}
+.action-btn.primary{background:var(--accent);color:#fff}
+.action-btn.secondary{background:#5a5a7a;color:var(--text)}
+.action-btn.gold{background:var(--gold);color:#1a1a2e}
+.action-btn.active{background:var(--my-turn);color:#1a1a2e;box-shadow:0 0 12px var(--my-turn)}
+.chat-panel{position:absolute;right:16px;top:16px;width:280px;height:400px;background:var(--panel);border:1px solid var(--tile-border);border-radius:12px;display:flex;flex-direction:column;z-index:5}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--tile-border);display:flex;justify-content:space-between;align-items:center}
+.chat-title{font-size:14px;color:var(--muted)}
+.chat-toggle{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;line-height:1}
+.chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{background:var(--bg);border-radius:8px;padding:8px 12px;max-width:85%;font-size:13px;word-break:break-word}
+.chat-msg.me{align-self:flex-end;background:rgba(233,69,96,.2)}
+.chat-msg .sender{font-size:11px;color:var(--gold);margin-bottom:2px}
+.chat-input-area{padding:12px;border-top:1px solid var(--tile-border);display:flex;gap:8px}
+.chat-input-area input{flex:1;padding:10px;border-radius:8px;border:1px solid var(--tile-border);background:var(--bg);color:var(--text);font-size:14px;outline:none}
+.chat-input-area input:focus{border-color:var(--accent)}
+.send-btn{padding:10px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:14px;font-weight:600}
+.chat-fab{position:fixed;top:16px;right:100px;z-index:60;padding:8px 16px;border-radius:20px;border:1px solid var(--tile-border);background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;display:none}
+.rules-fab{position:fixed;top:16px;right:16px;z-index:60;padding:8px 16px;border-radius:20px;border:1px solid var(--tile-border);background:var(--panel);color:var(--gold);cursor:pointer;font-size:13px}
+.rules-fab:hover{border-color:var(--gold)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--panel);border:1px solid var(--tile-border);border-radius:16px;padding:24px;width:100%;max-width:420px;max-height:80vh;overflow-y:auto}
+.modal h3{margin-bottom:16px;color:var(--gold);text-align:center;font-size:22px}
+.modal .btn-row{display:flex;gap:12px;margin-top:16px}
+.modal .btn-row .btn{flex:1}
+.modal .tile-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:12px}
+.modal .tile-grid .tile{width:48px;height:64px;font-size:18px}
+.vote-status{text-align:center;padding:16px;background:var(--bg);border-radius:8px;margin:16px 0;color:var(--muted)}
+.vote-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--tile-border)}
+.vote-agree{color:var(--my-turn)}
+.vote-reject{color:var(--accent)}
+.vote-pending{color:var(--muted)}
+.connection-status{position:fixed;top:16px;left:16px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border:1px solid var(--tile-border);border-radius:20px;font-size:12px;z-index:50}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#c0392b}
+.status-dot.connected{background:var(--my-turn);box-shadow:0 0 8px var(--my-turn)}
+.status-dot.connecting{background:var(--muted)}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--tile-border);border-radius:8px;padding:12px 24px;z-index:200;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+.result-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.result-overlay.active{display:flex}
+.result-modal{background:var(--panel);border:1px solid var(--tile-border);border-radius:16px;padding:32px;text-align:center;max-width:420px}
+.result-modal .winner{font-size:28px;color:var(--gold);font-weight:700;margin-bottom:12px}
+.result-stats{display:flex;justify-content:center;gap:24px;margin:16px 0;font-size:13px;color:var(--muted)}
+.result-stats .stat{text-align:center}
+.result-stats .stat .val{font-size:20px;color:var(--gold)}
+.hu-words-display{background:var(--bg);border-radius:8px;padding:12px;margin:12px 0;font-size:14px;color:var(--my-turn);line-height:1.8}
+@media(max-width:768px){
+  .hand-area .tile{width:40px;height:54px;font-size:18px}
+  .discard-area .tile{width:26px;height:34px;font-size:12px}
+  .chat-panel{width:100%;right:0;left:0;height:300px}
+  .lobby-card{padding:20px}
+}
+
+  /* 手机竖屏大厅适配 */
+  @media (max-width: 480px) and (orientation: portrait) {
+    body { overflow: hidden; }
+    #app { padding: 0; }
+    .lobby-card {
+      width: 100%;
+      max-width: 100%;
+      min-height: 100vh;
+      border-radius: 0;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .lobby-title h1 { font-size: 24px; }
+    .lobby-title p { font-size: 12px; }
+    .form-group input { font-size: 16px; padding: 14px; }
+    .btn { padding: 16px; font-size: 17px; }
+    .warning-box, .room-desc { font-size: 12px; }
+  }
+
+  /* 手机横屏游戏适配 */
+  @media (max-width: 900px) and (orientation: landscape) {
+    .game-table { min-height: 100vh; }
+    .player-area.bottom { bottom: 4px; width: 96%; }
+    .player-area.top { top: 4px; width: 96%; }
+    .player-area.left { left: 4px; height: 70%; }
+    .player-area.right { right: 4px; height: 70%; }
+    .hand-area .tile { width: 34px; height: 46px; font-size: 16px; }
+    .hand-area { gap: 2px; min-height: 46px; }
+    .discard-area .tile { width: 22px; height: 30px; font-size: 11px; }
+    .discard-area { min-height: 30px; max-height: 80px; }
+    .meld-area { min-height: 40px; }
+    .meld-group { padding: 2px 4px; }
+    .meld-group .tile { width: 22px; height: 30px; font-size: 11px; }
+    .player-name { font-size: 11px; }
+    .player-status { font-size: 10px; }
+    .remaining-tiles { padding: 8px 14px; }
+    .remaining-tiles .count { font-size: 24px; }
+    .remaining-tiles .label { font-size: 10px; }
+    #turn-indicator { font-size: 12px; }
+    .action-bar { bottom: 52px; gap: 6px; }
+    .action-btn { padding: 8px 16px; font-size: 13px; min-width: 56px; }
+    .chat-fab, .rules-fab { top: 4px; padding: 4px 10px; font-size: 11px; }
+    .chat-fab { right: 72px; }
+    .rules-fab { right: 4px; }
+    .connection-status { top: 4px; left: 4px; padding: 4px 8px; font-size: 10px; }
+    .toast { bottom: 80px; padding: 8px 16px; font-size: 12px; }
+    .modal { max-width: 90%; padding: 16px; max-height: 90vh; }
+    .modal h3 { font-size: 18px; }
+  }
+
+  /* 旋转提示遮罩 */
+  .rotate-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-align: center;
+    padding: 40px;
+  }
+  .rotate-overlay.active { display: flex; }
+  .rotate-icon {
+    width: 80px; height: 80px;
+    border: 4px solid var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    animation: rotateHint 2s ease-in-out infinite;
+  }
+  @keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+  .rotate-text { font-size: 18px; color: var(--gold); font-weight: 700; }
+  .rotate-sub { font-size: 14px; color: var(--muted); }
+  .rotate-btn {
+    margin-top: 10px;
+    padding: 12px 32px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="screen active" id="lobby-screen">
+    <div class="lobby-card">
+      <div class="lobby-title">
+        <h1>白色失明文字麻将</h1>
+        <p>汉字组词造句 · 人机混战 · WebRTC联机</p>
+      </div>
+      <div class="form-group">
+        <label>昵称</label>
+        <input type="text" id="nickname" placeholder="请输入昵称如 小明" maxlength="12">
+      </div>
+      <div class="form-group">
+        <label>信令服务器地址（房主用 ngrok 搭建后填入）</label>
+        <input type="text" id="signaling-url" placeholder="留空则尝试内置公共服务器">
+      </div>
+      <div class="form-group">
+        <label>房间号</label>
+        <input type="text" id="room-id-input" placeholder="输入房间号加入，或创建房间后自动获得">
+      </div>
+      <button class="btn btn-primary" id="create-room-btn">创建房间</button>
+      <button class="btn btn-secondary" id="join-room-btn" style="margin-top:12px">加入房间</button>
+      <button class="btn btn-gold" id="start-game-btn" style="margin-top:12px;display:none">开始游戏 (0/4)</button>
+      <button class="btn btn-secondary" id="rules-btn-lobby" style="margin-top:12px">玩法规则</button>
+      <div class="warning-box" id="warning-box">
+        <strong>联机说明</strong><br>
+        ・ 不足4人自动补AI，支持人机混战<br>
+        ・ AI纯随机出牌，胡牌需14张全组成词句<br>
+        ・ 真人胡牌需在场真人全同意，AI不参与投票<br>
+        ・ 掉线后重进房间可恢复对局<br>
+        ・ 房主退出自动迁移房主给在线真人
+      </div>
+      <div class="room-desc" id="room-desc" style="display:none">
+        <strong>房间说明</strong><br>
+        复制房间号分享给好友，好友输入后加入即可。
+      </div>
+      <div class="player-list" id="player-list"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="game-screen">
+    <div class="connection-status">
+      <span class="status-dot" id="conn-dot"></span>
+      <span id="conn-text">未连接</span>
+    </div>
+    <button class="rules-fab" id="rules-btn-game">玩法规则</button>
+    <button class="chat-fab" id="chat-fab">聊天</button>
+    <div class="game-table">
+      <div class="player-area left" id="player-left">
+        <div class="player-header">
+          <span class="player-name" id="name-left"> — </span>
+          <span class="player-status" id="status-left"></span>
+        </div>
+        <div class="meld-area" id="meld-left"></div>
+        <div class="discard-area" id="discard-left"></div>
+      </div>
+      <div class="player-area top" id="player-top">
+        <div class="player-header">
+          <span class="player-name" id="name-top"> — </span>
+          <span class="player-status" id="status-top"></span>
+        </div>
+        <div class="meld-area" id="meld-top"></div>
+        <div class="discard-area" id="discard-top"></div>
+      </div>
+      <div class="player-area right" id="player-right">
+        <div class="player-header">
+          <span class="player-name" id="name-right"> — </span>
+          <span class="player-status" id="status-right"></span>
+        </div>
+        <div class="meld-area" id="meld-right"></div>
+        <div class="discard-area" id="discard-right"></div>
+      </div>
+      <div class="center-area">
+        <div id="turn-indicator">等待开始游戏</div>
+        <div class="remaining-tiles" id="remaining-tiles">
+          <div class="count" id="tile-count">0</div>
+          <div class="label">牌库剩余</div>
+        </div>
+      </div>
+      <div class="player-area bottom" id="player-bottom">
+        <div class="player-header">
+          <span class="player-name me" id="name-bottom">我</span>
+          <span class="player-status" id="status-bottom"></span>
+        </div>
+        <div class="meld-area" id="meld-bottom"></div>
+        <div class="hand-area" id="hand-bottom"></div>
+        <div class="discard-area" id="discard-bottom"></div>
+      </div>
+      <div class="action-bar" id="action-bar">
+        <button class="action-btn secondary" id="btn-discard" disabled>打出选中牌</button>
+      </div>
+      <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+          <span class="chat-title">房间聊天</span>
+          <button class="chat-toggle" id="chat-toggle">×</button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+          <input type="text" id="chat-input" placeholder="输入消息..." maxlength="200">
+          <button class="send-btn" id="send-msg">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-content">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <div class="btn-row" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="hu-confirm-overlay">
+    <div class="modal" id="hu-confirm-modal">
+      <h3>胡牌确认</h3>
+      <div class="vote-status" id="hu-vote-status">等待确认...</div>
+      <div id="hu-vote-list"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-cancel-hu">重新考虑</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="rules-overlay">
+    <div class="modal" id="rules-modal">
+      <h3>玩法规则</h3>
+      <div id="rules-body" style="font-size:14px;line-height:1.8;color:var(--text);text-align:left">
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">一、游戏目标</p>
+        <p style="margin-bottom:12px">通过摸牌和打牌，使自己手上的14张牌能组成有意义的词语或句子，即可胡牌获胜。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">二、基本流程</p>
+        <p style="margin-bottom:4px">1. 每名玩家起手13张牌，庄家（座位0）首轮直接摸牌。</p>
+        <p style="margin-bottom:4px">2. 回合开始时从牌库摸1张牌，然后从手牌中选1张打出。</p>
+        <p style="margin-bottom:4px">3. 有人打出牌后，下家可选择吃/碰/胡/过，其他玩家可选择胡。</p>
+        <p style="margin-bottom:4px">4. 吃或碰后跳过摸牌，直接进入出牌阶段。</p>
+        <p style="margin-bottom:4px">5. 所有人选择「过」后，下家摸牌，继续下一回合。</p>
+        <p style="margin-bottom:12px">6. 牌库共144张（36种汉字各4张），摸空则流局。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">三、吃牌与碰牌</p>
+        <p style="margin-bottom:4px">・ 吃牌：只能吃上家打出的牌，用手牌中的字与打出的字组成词库中的词语（2-4字）。</p>
+        <p style="margin-bottom:4px">・ 碰牌：任何玩家打出的牌，若自己手牌中有2张相同字，即可碰。</p>
+        <p style="margin-bottom:4px">・ 吃碰后该牌组放入副露区（明牌），并跳过摸牌直接出牌。</p>
+        <p style="margin-bottom:12px">・ 优先级：胡 ＞ 碰 ＞ 吃；AI有50%概率碰、30%概率吃。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">四、胡牌条件</p>
+        <p style="margin-bottom:4px">・ 真人胡牌：点击「胡」发起投票，不校验手牌，其他真人全票同意即胡。</p>
+        <p style="margin-bottom:4px">・ AI胡牌：系统自动校验14张能否全部拆分词库中的词语或短句，满足才申请。</p>
+        <p style="margin-bottom:4px">・ 可以是一个长句，也可以是多个小短句拼接。</p>
+        <p style="margin-bottom:12px">・ AI不参与投票，仅真人投票。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">五、人机混战</p>
+        <p style="margin-bottom:4px">・ 不足4人时自动补AI，最少1人即可开始。</p>
+        <p style="margin-bottom:4px">・ AI纯随机出牌，摸到能胡的牌会自动申请胡牌。</p>
+        <p style="margin-bottom:12px">・ AI胡牌需真人投票同意，AI之间不互相投票。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">六、联机说明</p>
+        <p style="margin-bottom:4px">・ 使用 WebRTC P2P 直连，需信令服务器协助建立连接。</p>
+        <p style="margin-bottom:4px">・ 房主可使用 ngrok 搭建信令服务器，填入地址即可。</p>
+        <p style="margin-bottom:4px">・ 掉线后重新输入房间号可恢复对局。</p>
+        <p style="margin-bottom:12px">・ 房主退出自动迁移房主给在线真人，AI模拟不中断。</p>
+
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">七、操作说明</p>
+        <p style="margin-bottom:4px">・ 摸牌阶段：点击「摸牌」按钮或中央牌库数字。</p>
+        <p style="margin-bottom:4px">・ 出牌阶段：点击手牌选中（上浮高亮），再点「打出」。</p>
+        <p style="margin-bottom:4px">・ 等待阶段（别人打出牌后）：下家显示「吃/碰/胡/过」，其他玩家显示「胡」。</p>
+        <p style="margin-bottom:4px">・ 吃牌：点「吃」后选择要组成的词语。</p>
+        <p style="margin-bottom:4px">・ 碰牌：点「碰」直接碰牌。</p>
+        <p style="margin-bottom:4px">・ 过：放弃吃碰胡，由下家摸牌。</p>
+        <p style="margin-bottom:4px">・ 手牌整理：按住手牌拖动到目标位置可交换顺序，仅影响显示不影响游戏逻辑。</p>
+        <p style="margin-bottom:4px">・ 聊天：右上角「聊天」按钮打开/关闭聊天面板。</p>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-gold" id="rules-close-btn">我知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="result-overlay" id="result-overlay">
+    <div class="result-modal">
+      <div class="winner" id="result-winner">--- 获胜！</div>
+      <div id="result-body"></div>
+      <div class="hu-words-display" id="hu-words-display" style="display:none"></div>
+      <div class="result-stats" id="result-stats"></div>
+      <div class="btn-row">
+        <button class="btn btn-gold" id="btn-restart">重新开局</button>
+        <button class="btn btn-secondary" id="btn-back-lobby">返回大厅</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 手机横屏提示遮罩 -->
+  <div class="rotate-overlay" id="rotate-overlay">
+    <div class="rotate-icon">↻</div>
+    <div class="rotate-text">请将手机横屏使用</div>
+    <div class="rotate-sub">游戏需要横屏才能获得最佳体验</div>
+    <button class="rotate-btn" id="rotate-confirm-btn">我已横屏，进入游戏</button>
+  </div>
+</div>
+<script>
+"use strict";
+
+// ============================================================
+// 牌库 (36种字 × 4 = 144张)
+// ============================================================
+
+var CARD_CHARS = [
+  "我","你","他","她",
+  "爱","想","看","走","吃","玩","说","做","要","会",
+  "在","有","的","了","是","不","和","吗","啊","吧",
+  "好","大","多","美",
+  "家","人","钱","饭","水","书","花","猫"
+];
+
+// 胡牌词库：所有能组成的有意义词语和短句
+var HU_WORDS = [
+  // 二字词
+  "你好","他人","她家","爱心","想你","看书","走路","吃饭","玩笑","说话",
+  "做饭","要好","在家","有钱","好的","了解","不是","好吗","走吧","是啊",
+  "大家","家人","金钱","饭菜","书本","花朵","猫咪","美好","爱你","想看",
+  "吃了","玩了","说了","做了","走了","看了","想了","爱了","要了","会了",
+  "好美","好多","大了","多了","美了","家了","人了","钱了","饭了","水了",
+  "书了","花了","猫了","我了","你了","他了","她了","的了","了的","是了",
+  "不的","和的","吗的","啊的","吧的","好的","大的","多的","美的","家的",
+  "人的","钱的","饭的","水的","书的","花的","猫的","我和","你和","他和",
+  // 三字词
+  "我爱你","你好吗","他在家","她有猫","吃饭了","在看书","要不要","会不会",
+  "是不是","有钱了","好美啊","快走啊","吃饭吗","看书了","做好了","玩好啊",
+  "说好了","要走了","会好的","不是的","在家吗","有饭吗","你走吧","他走了",
+  "她在吗","我要走","你要看","他要吃","她要玩","大家好","我想你","你在吗",
+  "他有饭","她要走","我在吃","你在玩","他在说","她在做","好多了","太美了",
+  "好的啊","走吧啊","是啊啊","吃饭吧","看书吧","走路吧","做饭吧","玩笑吧",
+  "说话吧","爱你啊","想你啊","你好啊","他好啊","她好啊","大家啊","家人啊",
+  "金钱啊","饭菜啊","书本啊","花朵啊","猫咪啊","美好啊","在家啊","有钱啊",
+  // 四字词
+  "我爱吃的饭","你在看书吗","他要走了吧","她有猫和花","大家好啊","有钱人家",
+  "吃饭了吗","你要走了吗","他不会做饭","我想你了啊","他在看书","她在吃饭",
+  "我要吃饭","你要看书","他要走路","她要玩猫","好多钱啊","美好人家",
+  "你好啊","他在吗","她有猫","我要走了","你要吃了","他要玩了","她要走了",
+  "大家好啊","有钱了啊","吃饭了啊","看书了啊","做好了啊","玩好啊",
+  // 五字及以上
+  "我爱吃的饭菜","你在看书了吗","他要走了吧","她有猫和花啊","有钱人家的饭",
+  "我想你了啊","他不会做饭的","我要吃饭了","你要看书吗","他要走路了",
+  "她要玩猫了","大家好啊","吃饭了吗你","我要吃饭了啊","你在看书了啊"
+];
+
+// 去重
+HU_WORDS = HU_WORDS.filter(function(w, i) { return HU_WORDS.indexOf(w) === i; });
+
+function makeDeck() {
+  var d = [];
+  for (var i = 0; i < CARD_CHARS.length; i++) {
+    for (var j = 0; j < 4; j++) {
+      d.push(CARD_CHARS[i]);
+    }
+  }
+  return shuffle(d);
+}
+
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+// ============================================================
+// 胡牌判断：14张牌能否全部拆分成词库条目（回溯法）
+// ============================================================
+
+function canHu(hand) {
+  if (!hand || hand.length === 0) return true;
+  var sorted = hand.slice().sort();
+  return huBacktrack(sorted, []);
+}
+
+function huBacktrack(hand, path) {
+  if (hand.length === 0) return true;
+  // 尝试每个词库条目
+  for (var i = 0; i < HU_WORDS.length; i++) {
+    var word = HU_WORDS[i];
+    if (word.length > hand.length) continue;
+    // 检查hand是否包含word的所有字
+    var temp = hand.slice();
+    var ok = true;
+    for (var k = 0; k < word.length; k++) {
+      var idx = temp.indexOf(word[k]);
+      if (idx === -1) { ok = false; break; }
+      temp.splice(idx, 1);
+    }
+    if (ok) {
+      if (huBacktrack(temp, path.concat([word]))) return true;
+    }
+  }
+  return false;
+}
+
+// 返回胡牌拆分结果（用于展示）
+function findHuSolution(hand) {
+  var sorted = hand.slice().sort();
+  var result = [];
+  if (huBacktrackWithResult(sorted, result)) return result;
+  return null;
+}
+
+function huBacktrackWithResult(hand, path) {
+  if (hand.length === 0) return true;
+  for (var i = 0; i < HU_WORDS.length; i++) {
+    var word = HU_WORDS[i];
+    if (word.length > hand.length) continue;
+    var temp = hand.slice();
+    var ok = true;
+    for (var k = 0; k < word.length; k++) {
+      var idx = temp.indexOf(word[k]);
+      if (idx === -1) { ok = false; break; }
+      temp.splice(idx, 1);
+    }
+    if (ok) {
+      path.push(word);
+      if (huBacktrackWithResult(temp, path)) return true;
+      path.pop();
+    }
+  }
+  return false;
+}
+
+// ============================================================
+// 游戏状态
+// ============================================================
+
+var gameState = {
+  players: [],
+  me: null,
+  myIndex: -1,
+  roomId: null,
+  isCreator: false,
+  gameStarted: false,
+  deck: [],
+  remaining: 0,
+  myHand: [],
+  myMelds: [],
+  myDiscards: [],
+  myDraws: [],
+  currentSeat: 0,
+  turnPhase: "waiting",
+  canDraw: false,
+  canDiscard: false,
+  canEat: false,
+  canPong: false,
+  canHu: false,
+  selectedTile: null,
+  lastDiscard: null,
+  lastDiscardBy: -1,
+  actionTargetSeat: -1,
+  otherInfo: {},
+  aiHands: {},
+  gameOver: false,
+  huVotes: {},
+  huProposer: null
+};
+
+var dragSourceIndex = -1;
+
+// 手机端检测与横屏控制
+function isMobile() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+}
+function isPortrait() {
+  return window.innerHeight > window.innerWidth;
+}
+function showRotateOverlay() {
+  var ov = $("rotate-overlay");
+  if (ov) ov.classList.add("active");
+}
+function hideRotateOverlay() {
+  var ov = $("rotate-overlay");
+  if (ov) ov.classList.remove("active");
+}
+function requestFullscreenAndLandscape() {
+  if (!isMobile()) return;
+  // 请求全屏
+  var el = document.documentElement;
+  if (el.requestFullscreen) {
+    el.requestFullscreen().catch(function(){});
+  } else if (el.webkitRequestFullscreen) {
+    el.webkitRequestFullscreen();
+  }
+  // 请求横屏锁定（需要全屏后才生效）
+  setTimeout(function() {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock("landscape").catch(function(){});
+    }
+  }, 300);
+}
+function checkMobileOrientation() {
+  if (!isMobile()) return;
+  if (gameState.gameStarted && isPortrait()) {
+    showRotateOverlay();
+  } else {
+    hideRotateOverlay();
+  }
+}
+
+var $ = function(id) { return document.getElementById(id); };
+
+// ============================================================
+// 网络层
+// ============================================================
+
+var socket = null;
+var connections = {};
+var peerDc = {};
+var p2pConnected = false;
+var p2pCount = 0;
+
+var RELAY_SERVERS = [
+  "wss://relay.xtrp.cc",
+  "wss://ws.xtrp.io/ws",
+  "wss://relay.code.pub",
+  "wss://ws-relay.free4.in",
+  "wss://relay-ws.xtrp.cc"
+];
+
+var customSignalingUrl = "";
+
+var STUN_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun.stunhardware.com:19302" }
+];
+
+function isOnlineMode() {
+  return gameState.players.length > 0 &&
+    !gameState.players.every(function(p) { return p.id && p.id.indexOf("ai-") === 0; }) &&
+    (p2pConnected || (socket && socket.readyState === WebSocket.OPEN));
+}
+
+function isAI(playerId) {
+  return playerId && playerId.indexOf("ai-") === 0;
+}
+
+function getHumanPlayers() {
+  return gameState.players.filter(function(p) { return !isAI(p.id); });
+}
+
+function getAIPlayers() {
+  return gameState.players.filter(function(p) { return isAI(p.id); });
+}
+
+// ============================================================
+// 消息处理
+// ============================================================
+
+function handleGameMsg(msg) {
+  if (!msg || !msg.type) return;
+  if (msg.fromId === gameState.me.id) return;
+
+  switch (msg.type) {
+    case "player-joined": onRemotePlayerJoined(msg.data); break;
+    case "player-left": onRemotePlayerLeft(msg.data); break;
+    case "start-game": onRemoteStartGame(msg.data); break;
+    case "turn-change": onRemoteTurnChange(msg.data); break;
+    case "draw": onRemoteDraw(msg.data); break;
+    case "discard": onRemoteDiscard(msg.data); break;
+    case "ai-discard": onAIDiscard(msg.data); break;
+    case "eat": onRemoteEat(msg.data); break;
+    case "pong": onRemotePong(msg.data); break;
+    case "pass-action": onRemotePass(msg.data); break;
+    case "hu-propose": onRemoteHuPropose(msg.data); break;
+    case "hu-vote": onRemoteHuVote(msg.data); break;
+    case "hu-cancel": onRemoteHuCancel(msg.data); break;
+    case "chat": onRemoteChat(msg.data); break;
+    case "restart-game": onRemoteRestart(msg.data); break;
+    case "game-over": endOnlineGame(msg.data.winnerId, msg.data.huWords); break;
+    case "host-migration": onHostMigration(msg.data); break;
+    case "rejoin-request": onRejoinRequest(msg.data); break;
+    case "rejoin-response": onRejoinResponse(msg.data); break;
+    case "state-sync": onStateSync(msg.data); break;
+  }
+}
+
+function onRemotePlayerJoined(data) {
+  var p = data.player;
+  if (!p || p.id === gameState.me.id) return;
+  var existing = gameState.players.find(function(pl) { return pl.id === p.id; });
+  if (!existing) {
+    p.seat = p.seat != null ? p.seat : gameState.players.length;
+    gameState.players.push(p);
+    gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+    renderLobby();
+    updateStartBtn();
+  }
+}
+
+function onRemotePlayerLeft(data) {
+  var idx = gameState.players.findIndex(function(p) { return p.id === data.id; });
+  if (idx !== -1) {
+    var wasCreator = gameState.players[idx].isCreator;
+    gameState.players.splice(idx, 1);
+    delete gameState.otherInfo[data.id];
+    // 如果离开的是房主且游戏进行中，触发房主迁移
+    if (wasCreator && gameState.gameStarted && !gameState.gameOver) {
+      migrateHost();
+    }
+    renderLobby();
+    updateStartBtn();
+    if (gameState.gameStarted) renderGame();
+  }
+}
+
+function onRemoteStartGame(data) {
+  gameState.gameStarted = true;
+  gameState.gameOver = false;
+  gameState.deck = data.deck || [];
+  gameState.remaining = data.remaining || 0;
+  gameState.currentSeat = data.firstSeat || 0;
+  gameState.players = data.players || gameState.players;
+  gameState.players.forEach(function(p) {
+    var hand = data.hands[p.id];
+    if (hand !== undefined) {
+      gameState.otherInfo[p.id] = { handCount: hand.length, melds: [], discards: [] };
+    }
+  });
+  if (data.hands[gameState.me.id] !== undefined) {
+    gameState.myHand = data.hands[gameState.me.id];
+    gameState.myMelds = [];
+    gameState.myDiscards = [];
+    gameState.myDraws = [];
+  }
+  gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+  saveGameState();
+  showScreen("game");
+  renderGame();
+  startTurnRemote(data.firstSeat || 0);
+}
+
+function startTurnRemote(seat) {
+  gameState.currentSeat = seat;
+  gameState.turnPhase = "draw";
+  gameState.canDraw = false;
+  gameState.canDiscard = false;
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = true;
+  gameState.selectedTile = null;
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  updateTurnIndicator();
+  renderActionBar();
+  renderHand();
+
+  var player = gameState.players[seat];
+  if (player && isAI(player.id)) {
+    // AI回合：只有房主端模拟
+    if (gameState.isCreator) {
+      setTimeout(function() { simulateAI(seat); }, 600);
+    }
+  } else if (seat === gameState.myIndex) {
+    setTimeout(function() { beginMyTurn(); }, 300);
+  }
+}
+
+function onRemoteTurnChange(data) {
+  startTurnRemote(data.seat);
+}
+
+function onRemoteDraw(data) {
+  gameState.remaining = data.remaining;
+  renderTileCount();
+  if (data.playerId === gameState.me.id) {
+    // 自己摸牌已本地处理
+  } else {
+    var p = gameState.players.find(function(pl) { return pl.id === data.playerId; });
+    if (p && gameState.otherInfo[p.id]) {
+      gameState.otherInfo[p.id].handCount++;
+    }
+    showToast((p ? p.name : "玩家") + " 摸了一张", 1500);
+  }
+  renderPlayerInfo();
+}
+
+function onRemoteDiscard(data) {
+  gameState.lastDiscard = data.card;
+  var p = gameState.players.find(function(pl) { return pl.id === data.playerId; });
+  if (p) {
+    gameState.lastDiscardBy = p.seat;
+    if (gameState.otherInfo[p.id]) {
+      gameState.otherInfo[p.id].discards = gameState.otherInfo[p.id].discards || [];
+      gameState.otherInfo[p.id].discards.push(data.card);
+      if (gameState.otherInfo[p.id].handCount > 0) {
+        gameState.otherInfo[p.id].handCount--;
+      }
+    }
+  }
+  renderDiscards();
+  showToast((p ? p.name : "玩家") + " 打出: " + data.card, 1500);
+
+  var nextSeat = (data.nextSeat !== undefined) ? data.nextSeat : (gameState.currentSeat + 1) % 4;
+  enterWaitingAction(nextSeat, data.card);
+}
+
+function onAIDiscard(data) {
+  // 房主广播的AI出牌，非房主端进入等待阶段
+  if (!gameState.isCreator) {
+    onRemoteDiscard(data);
+  }
+}
+
+function onRemoteEat(data) {
+  var p = gameState.players.find(function(pl) { return pl.id === data.playerId; });
+  if (p && gameState.otherInfo[p.id]) {
+    gameState.otherInfo[p.id].melds = gameState.otherInfo[p.id].melds || [];
+    gameState.otherInfo[p.id].melds.push({ type: "eat", cards: (data.word || "").split(""), source: data.card });
+    if (gameState.otherInfo[p.id].handCount > 0) {
+      gameState.otherInfo[p.id].handCount -= ((data.word || "").length - 1);
+    }
+  }
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  gameState.currentSeat = p ? p.seat : gameState.currentSeat;
+  gameState.turnPhase = "discard";
+  renderMelds();
+  renderPlayerInfo();
+  renderActionBar();
+  showToast((p ? p.name : "玩家") + " 吃了 " + data.word, 2000);
+}
+
+function onRemotePong(data) {
+  var p = gameState.players.find(function(pl) { return pl.id === data.playerId; });
+  if (p && gameState.otherInfo[p.id]) {
+    gameState.otherInfo[p.id].melds = gameState.otherInfo[p.id].melds || [];
+    gameState.otherInfo[p.id].melds.push({ type: "pong", cards: [data.card, data.card, data.card] });
+    if (gameState.otherInfo[p.id].handCount >= 2) {
+      gameState.otherInfo[p.id].handCount -= 2;
+    }
+  }
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  gameState.currentSeat = p ? p.seat : gameState.currentSeat;
+  gameState.turnPhase = "discard";
+  renderMelds();
+  renderPlayerInfo();
+  renderActionBar();
+  showToast((p ? p.name : "玩家") + " 碰了 " + data.card, 2000);
+}
+
+function onRemotePass(data) {
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  var nextSeat = data.nextSeat;
+  startTurnRemote(nextSeat);
+}
+
+function onRemoteHuPropose(data) {
+  gameState.huVotes = {};
+  gameState.huVotes[data.playerId] = true;
+  gameState.huProposer = data.playerId;
+  $("hu-vote-status").textContent = (data.name || "玩家") + " 申请胡牌，请选择：";
+  $("hu-vote-list").innerHTML = "";
+
+  if (data.hand && data.hand.length > 0) {
+    var handDiv = document.createElement("div");
+    handDiv.style.textAlign = "center";
+    handDiv.style.margin = "12px 0";
+    handDiv.innerHTML = "<div style='font-size:13px;color:var(--muted);margin-bottom:8px'>" + (data.name || "玩家") + " 的牌面：</div>";
+    var tileRow = document.createElement("div");
+    tileRow.style.display = "flex";
+    tileRow.style.gap = "4px";
+    tileRow.style.justifyContent = "center";
+    tileRow.style.flexWrap = "wrap";
+    data.hand.forEach(function(ch) {
+      var t = createSmallTile(ch);
+      tileRow.appendChild(t);
+    });
+    handDiv.appendChild(tileRow);
+    $("hu-vote-list").appendChild(handDiv);
+  }
+
+  // AI不参与投票，只显示真人投票按钮
+  var footer = document.querySelector("#hu-confirm-modal .btn-row");
+  footer.innerHTML = "";
+
+  var proposer = gameState.players.find(function(p) { return p.id === data.playerId; });
+  var isProposerAI = proposer && isAI(proposer.id);
+
+  if (isProposerAI) {
+    // AI胡牌：真人投票
+    var agreeBtn = document.createElement("button");
+    agreeBtn.className = "btn btn-gold";
+    agreeBtn.textContent = "同意胡牌";
+    agreeBtn.onclick = function() {
+      gameState.huVotes[gameState.me.id] = true;
+      broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: true });
+      agreeBtn.disabled = true;
+      agreeBtn.textContent = "已同意";
+      if (rejectBtn) rejectBtn.disabled = true;
+      updateHuConfirmUI();
+      checkVotesComplete();
+    };
+    footer.appendChild(agreeBtn);
+
+    var rejectBtn = document.createElement("button");
+    rejectBtn.className = "btn btn-secondary";
+    rejectBtn.textContent = "驳回胡牌";
+    rejectBtn.onclick = function() {
+      gameState.huVotes[gameState.me.id] = false;
+      broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: false });
+      rejectBtn.disabled = true;
+      rejectBtn.textContent = "已驳回";
+      if (agreeBtn) agreeBtn.disabled = true;
+      updateHuConfirmUI();
+      checkVotesComplete();
+    };
+    footer.appendChild(rejectBtn);
+  } else {
+    // 真人胡牌：其他真人投票
+    var agreeBtn2 = document.createElement("button");
+    agreeBtn2.className = "btn btn-gold";
+    agreeBtn2.textContent = "同意胡牌";
+    agreeBtn2.onclick = function() {
+      gameState.huVotes[gameState.me.id] = true;
+      broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: true });
+      agreeBtn2.disabled = true;
+      agreeBtn2.textContent = "已同意";
+      if (rejectBtn2) rejectBtn2.disabled = true;
+      updateHuConfirmUI();
+      checkVotesComplete();
+    };
+    footer.appendChild(agreeBtn2);
+
+    var rejectBtn2 = document.createElement("button");
+    rejectBtn2.className = "btn btn-secondary";
+    rejectBtn2.textContent = "驳回胡牌";
+    rejectBtn2.onclick = function() {
+      gameState.huVotes[gameState.me.id] = false;
+      broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: false });
+      rejectBtn2.disabled = true;
+      rejectBtn2.textContent = "已驳回";
+      if (agreeBtn2) agreeBtn2.disabled = true;
+      updateHuConfirmUI();
+      checkVotesComplete();
+    };
+    footer.appendChild(rejectBtn2);
+  }
+
+  $("hu-confirm-overlay").classList.add("active");
+}
+
+function onRemoteHuVote(data) {
+  gameState.huVotes[data.playerId] = data.vote;
+  updateHuConfirmUI();
+  checkVotesComplete();
+}
+
+function onRemoteHuCancel(data) {
+  if (data.playerId === gameState.me.id) return;
+  showToast((data.name || "玩家") + " 取消了胡牌", 2000);
+  gameState.huVotes = {};
+  gameState.huProposer = null;
+  hideHuConfirm();
+}
+
+function updateHuConfirmUI() {
+  var proposerId = gameState.huProposer;
+  // 只统计真人玩家（排除AI和发起者）
+  var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== proposerId; });
+  var votedCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] !== undefined; }).length;
+  var remaining = humanVoters.length - votedCount;
+  if (humanVoters.length === 0) {
+    $("hu-vote-status").textContent = "无其他真人玩家，自动通过";
+  } else if (remaining > 0) {
+    $("hu-vote-status").textContent = "等待 " + remaining + "/" + humanVoters.length + " 名真人确认...";
+  } else {
+    $("hu-vote-status").textContent = "所有真人已确认";
+  }
+}
+
+function checkVotesComplete() {
+  var proposerId = gameState.huProposer;
+  var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== proposerId; });
+
+  // 如果没有其他真人（只有1个真人），自动通过
+  if (humanVoters.length === 0) {
+    var proposer = gameState.players.find(function(p) { return p.id === proposerId; });
+    var huWords = null;
+    if (proposer && isAI(proposer.id)) {
+      // AI胡牌，房主端计算拆分
+      if (gameState.isCreator) {
+        var aiHand = getAIHand(proposerId);
+        huWords = findHuSolution(aiHand);
+      }
+    }
+    endOnlineGame(proposerId, huWords);
+    broadcastGameMsg("game-over", { winnerId: proposerId, huWords: huWords });
+    hideHuConfirm();
+    return;
+  }
+
+  var votedCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] !== undefined; }).length;
+  if (votedCount >= humanVoters.length) {
+    var noCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] === false; }).length;
+    if (noCount > 0) {
+      showToast("胡牌被驳回", 3000);
+    } else {
+      var proposer2 = gameState.players.find(function(p) { return p.id === proposerId; });
+      var huWords2 = null;
+      if (proposer2 && isAI(proposer2.id) && gameState.isCreator) {
+        var aiHand2 = getAIHand(proposerId);
+        huWords2 = findHuSolution(aiHand2);
+      }
+      endOnlineGame(proposerId, huWords2);
+      broadcastGameMsg("game-over", { winnerId: proposerId, huWords: huWords2 });
+    }
+    hideHuConfirm();
+  }
+}
+
+function getAIHand(aiId) {
+  // 房主端维护AI的手牌
+  if (gameState.aiHands && gameState.aiHands[aiId]) {
+    return gameState.aiHands[aiId];
+  }
+  return [];
+}
+
+function endOnlineGame(winnerId, huWords) {
+  gameState.gameOver = true;
+  gameState.turnPhase = "gameover";
+  var winner = gameState.players.find(function(p) { return p.id === winnerId; }) || gameState.me;
+  $("result-winner").textContent = (winner ? winner.name : "神秘人") + " 胜利！";
+
+  var bodyHtml = "<div style='color:var(--muted);font-size:16px'>游戏结束</div>";
+  if (winnerId === gameState.me.id) {
+    var sol = findHuSolution(gameState.myHand);
+    if (sol) {
+      bodyHtml = "<div class='hu-words-display'>胡牌词组：" + sol.join(" + ") + "</div>";
+    }
+  } else if (huWords && huWords.length > 0) {
+    bodyHtml = "<div class='hu-words-display'>胡牌词组：" + huWords.join(" + ") + "</div>";
+  }
+  $("result-body").innerHTML = bodyHtml;
+
+  var stats = "<div class='stat'><div class='val'>" + gameState.myHand.length + "</div>手牌</div>" +
+    "<div class='stat'><div class='val'>" + gameState.myMelds.length + "</div>吃碰</div>" +
+    "<div class='stat'><div class='val'>" + gameState.myDiscards.length + "</div>弃牌</div>" +
+    "<div class='stat'><div class='val'>" + gameState.myDraws.length + "</div>摸牌</div>";
+  $("result-stats").innerHTML = stats;
+  $("result-overlay").classList.add("active");
+  clearGameState();
+}
+
+function onRemoteChat(data) {
+  addChatMessage(data.name, data.text, false);
+}
+
+function onRemoteRestart(data) {
+  gameState.players.forEach(function(p) { p.ready = false; });
+  resetGameState();
+  showScreen("lobby");
+  showToast("房主重新开局", 2000);
+}
+
+function broadcastGameMsg(type, data) {
+  var msg = { type: type, fromId: gameState.me.id, data: data };
+  var sent = 0;
+  Object.keys(peerDc).forEach(function(id) {
+    var ch = peerDc[id];
+    if (ch && ch.readyState === "open") {
+      ch.send(JSON.stringify(msg));
+      sent++;
+    }
+  });
+  if (sent === 0 && socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "broadcast",
+      roomId: gameState.roomId,
+      payload: msg
+    }));
+  }
+}
+
+// ============================================================
+// 信令
+// ============================================================
+
+function connectToRelay(retries) {
+  retries = retries || 0;
+  if (customSignalingUrl && retries === 0) {
+    setConnStatus("连接自定义信令服务器...", "#ffd700");
+    var ws = new WebSocket(customSignalingUrl);
+    socket = ws;
+    ws.onopen = function() {
+      setConnStatus("信令已连接 (自定义)", "#4ade80");
+      ws.send(JSON.stringify({
+        type: "join-room",
+        roomId: gameState.roomId,
+        player: {
+          id: gameState.me.id,
+          name: gameState.me.name,
+          isCreator: gameState.isCreator,
+          seat: gameState.myIndex
+        }
+      }));
+    };
+    ws.onmessage = function(e) {
+      try { handleSignalMessage(JSON.parse(e.data)); } catch (err) { console.error("Signal parse error:", err); }
+    };
+    ws.onerror = function() {
+      setConnStatus("自定义信令服务器连接失败", "#e94560");
+      showToast("无法连接自定义信令服务器，请检查地址和ngrok是否启动", 4000);
+    };
+    ws.onclose = function() {
+      setConnStatus("信令断开", "#e94560");
+    };
+    return;
+  }
+
+  if (retries >= RELAY_SERVERS.length) {
+    setConnStatus("信令连接失败，可使用单机模式", "#e94560");
+    showToast("无法连接信令服务器，仍可使用单机/人机模式", 4000);
+    return;
+  }
+  var url = RELAY_SERVERS[retries];
+  setConnStatus("信令连接中...", "#ffd700");
+  var ws2 = new WebSocket(url);
+  socket = ws2;
+  ws2.onopen = function() {
+    setConnStatus("信令已连接", "#4ade80");
+    ws2.send(JSON.stringify({
+      type: "join-room",
+      roomId: gameState.roomId,
+      player: {
+        id: gameState.me.id,
+        name: gameState.me.name,
+        isCreator: gameState.isCreator,
+        seat: gameState.myIndex
+      }
+    }));
+  };
+  ws2.onmessage = function(e) {
+    try { handleSignalMessage(JSON.parse(e.data)); } catch (err) { console.error("Signal parse error:", err); }
+  };
+  ws2.onerror = function() { setConnStatus("信令错误，重试中...", "#e94560"); };
+  ws2.onclose = function() {
+    setConnStatus("信令断开，重试中...", "#e94560");
+    setTimeout(function() { connectToRelay(retries + 1); }, 3000);
+  };
+}
+
+function handleSignalMessage(msg) {
+  if (!msg || !msg.type) return;
+  switch (msg.type) {
+    case "room-joined":
+    case "player-list":
+    case "room-update":
+      handleRoomList(msg.players || []);
+      break;
+    case "p2p-offer": handleRemoteOffer(msg); break;
+    case "p2p-answer": handleRemoteAnswer(msg); break;
+    case "p2p-ice": handleRemoteIce(msg); break;
+    case "room-msg":
+      if (msg.fromId !== gameState.me.id) handleGameMsg(msg.payload);
+      break;
+  }
+}
+
+function handleRoomList(players) {
+  gameState.players = players.map(function(p) {
+    return {
+      id: p.id, name: p.name, seat: p.seat || 0,
+      ready: p.ready || false, isCreator: p.isCreator || false
+    };
+  });
+  var me = gameState.players.find(function(p) { return p.id === gameState.me.id; });
+  if (!me) {
+    gameState.players.push({
+      id: gameState.me.id, name: gameState.me.name,
+      seat: gameState.players.length, ready: false, isCreator: gameState.isCreator
+    });
+    gameState.myIndex = gameState.players.length - 1;
+    socket.send(JSON.stringify({
+      type: "join-room", roomId: gameState.roomId,
+      player: { id: gameState.me.id, name: gameState.me.name, isCreator: gameState.isCreator, seat: gameState.myIndex }
+    }));
+    return;
+  }
+  gameState.myIndex = me.seat || 0;
+  gameState.players.forEach(function(p) {
+    if (!gameState.otherInfo[p.id]) {
+      gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+    }
+  });
+  if (gameState.players.length >= 2) {
+    setTimeout(function() { tryConnectAllPeers(); }, 1000);
+  }
+  renderLobby();
+  updateStartBtn();
+}
+
+function updateStartBtn() {
+  var btn = $("start-game-btn");
+  if (gameState.isCreator) {
+    btn.style.display = "";
+    var count = gameState.players.length;
+    btn.textContent = "开始游戏 (" + count + "/4，不足补AI)";
+    btn.disabled = count < 1;
+  } else {
+    btn.style.display = "none";
+  }
+}
+
+// ============================================================
+// P2P
+// ============================================================
+
+function tryConnectAllPeers() {
+  var others = gameState.players.filter(function(p) { return p.id !== gameState.me.id && !isAI(p.id); });
+  others.forEach(function(p, i) {
+    setTimeout(function() { tryConnectPeer(p.id, p.name); }, 300 * i);
+  });
+}
+
+function tryConnectPeer(targetId, targetName) {
+  if (connections[targetId]) return;
+  var pcObj = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+  connections[targetId] = pcObj;
+
+  pcObj.onicecandidate = function(evt) {
+    if (evt.candidate) {
+      socket.send(JSON.stringify({
+        type: "p2p-ice", roomId: gameState.roomId,
+        targetId: targetId, candidate: evt.candidate
+      }));
+    }
+  };
+  pcObj.onconnectionstatechange = function() {
+    if (pcObj.connectionState === "failed" || pcObj.connectionState === "disconnected") {
+      showToast("与 " + targetName + " 的连接中断", 3000);
+    }
+  };
+  var channel = pcObj.createDataChannel("game");
+  setupPeerChannel(channel, targetId);
+  peerDc[targetId] = channel;
+
+  if (gameState.isCreator) {
+    pcObj.createOffer().then(function(offer) {
+      return pcObj.setLocalDescription(offer);
+    }).then(function() {
+      socket.send(JSON.stringify({
+        type: "p2p-offer", roomId: gameState.roomId,
+        targetId: targetId, offer: pcObj.localDescription
+      }));
+    }).catch(function(e) { console.error("Offer error:", e); });
+  }
+}
+
+function handleRemoteOffer(msg) {
+  if (msg.fromId === gameState.me.id || connections[msg.fromId]) return;
+  var pcObj = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+  connections[msg.fromId] = pcObj;
+  pcObj.onicecandidate = function(evt) {
+    if (evt.candidate) {
+      socket.send(JSON.stringify({
+        type: "p2p-ice", roomId: gameState.roomId,
+        targetId: msg.fromId, candidate: evt.candidate
+      }));
+    }
+  };
+  pcObj.ondatachannel = function(evt) {
+    setupPeerChannel(evt.channel, msg.fromId);
+    peerDc[msg.fromId] = evt.channel;
+  };
+  pcObj.setRemoteDescription(new RTCSessionDescription(msg.offer)).then(function() {
+    return pcObj.createAnswer();
+  }).then(function(answer) {
+    return pcObj.setLocalDescription(answer);
+  }).then(function() {
+    socket.send(JSON.stringify({
+      type: "p2p-answer", roomId: gameState.roomId,
+      targetId: msg.fromId, answer: pcObj.localDescription
+    }));
+  }).catch(function(e) { console.error("Answer error:", e); });
+}
+
+function handleRemoteAnswer(msg) {
+  var pcObj = connections[msg.fromId];
+  if (pcObj) pcObj.setRemoteDescription(new RTCSessionDescription(msg.answer)).catch(function(e) { console.error(e); });
+}
+
+function handleRemoteIce(msg) {
+  var pcObj = connections[msg.fromId];
+  if (pcObj) pcObj.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(function(e) { console.warn(e); });
+}
+
+function setupPeerChannel(channel, peerId) {
+  channel.onopen = function() {
+    p2pCount++;
+    checkAllConnected();
+    // 连接成功后，如果有进行中的游戏，请求状态同步
+    if (gameState.gameStarted && !gameState.gameOver) {
+      broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+    }
+  };
+  channel.onclose = function() { p2pConnected = false; };
+  channel.onerror = function(e) { console.warn("Channel error:", e); };
+  channel.onmessage = function(e) {
+    try { handleGameMsg(JSON.parse(e.data)); } catch (err) { console.error("Message parse error:", err); }
+  };
+}
+
+function checkAllConnected() {
+  var totalPeers = getHumanPlayers().length - 1;
+  if (totalPeers <= 0) { p2pConnected = true; return; }
+  var connected = Object.keys(peerDc).filter(function(id) {
+    return peerDc[id].readyState === "open";
+  }).length;
+  p2pCount = connected;
+  if (connected >= totalPeers) {
+    p2pConnected = true;
+    setConnStatus("P2P已连接 (" + p2pCount + "/" + totalPeers + ")", "#4ade80");
+  } else {
+    setConnStatus("P2P连接中 (" + p2pCount + "/" + totalPeers + ")", "#ffd700");
+  }
+}
+
+// ============================================================
+// 房主迁移
+// ============================================================
+
+function migrateHost() {
+  // 选举座位号最小的在线真人为新房主
+  var humans = getHumanPlayers().filter(function(p) { return p.id !== gameState.me.id; });
+  // 检查自己是否应该成为新房主
+  var allHumans = getHumanPlayers();
+  var minSeat = Math.min.apply(null, allHumans.map(function(p) { return p.seat; }));
+  if (gameState.myIndex === minSeat) {
+    gameState.isCreator = true;
+    gameState.me.isCreator = true;
+    showToast("房主已迁移到你", 3000);
+    broadcastGameMsg("host-migration", { newHostId: gameState.me.id });
+  }
+}
+
+function onHostMigration(data) {
+  if (data.newHostId === gameState.me.id) {
+    gameState.isCreator = true;
+    gameState.me.isCreator = true;
+    showToast("你已成为新房主", 3000);
+  } else {
+    var newHost = gameState.players.find(function(p) { return p.id === data.newHostId; });
+    if (newHost) {
+      gameState.players.forEach(function(p) { p.isCreator = (p.id === data.newHostId); });
+      showToast("房主已迁移给 " + newHost.name, 3000);
+    }
+  }
+}
+
+// ============================================================
+// 重连 / 状态同步
+// ============================================================
+
+function saveGameState() {
+  if (!gameState.roomId || !gameState.gameStarted) return;
+  try {
+    var save = {
+      roomId: gameState.roomId,
+      myId: gameState.me.id,
+      myName: gameState.me.name,
+      myIndex: gameState.myIndex,
+      isCreator: gameState.isCreator,
+      timestamp: Date.now()
+    };
+    localStorage.setItem("mahjong_save_" + gameState.roomId, JSON.stringify(save));
+  } catch(e) {}
+}
+
+function clearGameState() {
+  if (gameState.roomId) {
+    try { localStorage.removeItem("mahjong_save_" + gameState.roomId); } catch(e) {}
+  }
+}
+
+function getSavedGame(roomId) {
+  try {
+    var data = localStorage.getItem("mahjong_save_" + roomId);
+    return data ? JSON.parse(data) : null;
+  } catch(e) { return null; }
+}
+
+function onRejoinRequest(data) {
+  // 房主端收到重连请求，发送当前状态
+  if (!gameState.isCreator || !gameState.gameStarted) return;
+  var player = gameState.players.find(function(p) { return p.id === data.playerId; });
+  if (!player) return;
+
+  var syncData = {
+    players: gameState.players,
+    deck: gameState.deck,
+    remaining: gameState.remaining,
+    currentSeat: gameState.currentSeat,
+    turnPhase: gameState.turnPhase,
+    myHand: gameState.myHand,
+    myMelds: gameState.myMelds,
+    myDiscards: gameState.myDiscards,
+    otherInfo: gameState.otherInfo,
+    aiHands: gameState.aiHands || {},
+    lastDiscard: gameState.lastDiscard,
+    lastDiscardBy: gameState.lastDiscardBy,
+    targetId: data.playerId
+  };
+  broadcastGameMsg("state-sync", syncData);
+}
+
+function onStateSync(data) {
+  if (data.targetId && data.targetId !== gameState.me.id) return;
+  if (!gameState.gameStarted) {
+    gameState.players = data.players || gameState.players;
+    gameState.deck = data.deck || [];
+    gameState.remaining = data.remaining || 0;
+    gameState.currentSeat = data.currentSeat || 0;
+    gameState.turnPhase = data.turnPhase || "waiting";
+    gameState.myHand = data.myHand || [];
+    gameState.myMelds = data.myMelds || [];
+    gameState.myDiscards = data.myDiscards || [];
+    gameState.otherInfo = data.otherInfo || {};
+    gameState.aiHands = data.aiHands || {};
+    gameState.lastDiscard = data.lastDiscard;
+    gameState.lastDiscardBy = data.lastDiscardBy;
+    gameState.gameStarted = true;
+    gameState.gameOver = false;
+    gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+    showScreen("game");
+    renderGame();
+    showToast("已恢复对局", 2000);
+    // 如果轮到自己，开始回合
+    if (gameState.currentSeat === gameState.myIndex && gameState.turnPhase === "draw") {
+      beginMyTurn();
+    }
+  }
+}
+
+function onRejoinResponse(data) {
+  // 预留
+}
+
+// ============================================================
+// 房间逻辑
+// ============================================================
+
+function generateRoomId() {
+  var s = "", chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  for (var i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+}
+
+function createRoom() {
+  var nick = $("nickname").value.trim() || ("玩家" + Math.floor(Math.random() * 1000));
+  $("nickname").value = nick;
+  localStorage.setItem("mahjong_nickname", nick);
+  customSignalingUrl = ($("signaling-url") ? $("signaling-url").value.trim() : "") || "";
+  if (customSignalingUrl) localStorage.setItem("mahjong_signaling_url", customSignalingUrl);
+
+  gameState.roomId = generateRoomId();
+  gameState.isCreator = true;
+  gameState.me = { id: generateId(), name: nick, isCreator: true };
+  gameState.myIndex = 0;
+  gameState.players = [{ id: gameState.me.id, name: nick, ready: false, isCreator: true, seat: 0 }];
+  gameState.otherInfo = {};
+
+  $("room-id-input").value = gameState.roomId;
+  $("create-room-btn").style.display = "none";
+  $("join-room-btn").style.display = "none";
+  $("start-game-btn").style.display = "";
+  $("start-game-btn").textContent = "开始游戏 (1/4，不足补AI)";
+  $("start-game-btn").disabled = false;
+  $("warning-box").style.display = "";
+  $("room-desc").style.display = "";
+  renderLobby();
+  setConnStatus("房主 · 等待连接...", "#4ade80");
+  showToast("房间已创建：" + gameState.roomId + "，不足4人将自动补AI", 3000);
+  connectToRelay();
+}
+
+function joinRoomByInput() {
+  var nick = $("nickname").value.trim() || ("玩家" + Math.floor(Math.random() * 1000));
+  var rid = $("room-id-input").value.trim();
+  if (!rid) { showToast("请输入房间号", 2000); return; }
+  $("nickname").value = nick;
+  localStorage.setItem("mahjong_nickname", nick);
+  customSignalingUrl = ($("signaling-url") ? $("signaling-url").value.trim() : "") || "";
+  if (customSignalingUrl) localStorage.setItem("mahjong_signaling_url", customSignalingUrl);
+
+  // 检查是否有保存的对局（重连）
+  var saved = getSavedGame(rid);
+  if (saved && saved.myId) {
+    gameState.me = { id: saved.myId, name: nick || saved.myName, isCreator: saved.isCreator };
+    showToast("检测到未完成对局，正在恢复...", 3000);
+  } else {
+    gameState.me = { id: generateId(), name: nick, isCreator: false };
+  }
+
+  gameState.roomId = rid;
+  gameState.isCreator = gameState.me.isCreator || false;
+  $("create-room-btn").style.display = "none";
+  $("join-room-btn").style.display = "none";
+  $("start-game-btn").style.display = "none";
+  showToast("正在连接房间：" + rid, 3000);
+  connectToRelay();
+}
+
+function startGameClicked() {
+  if (!gameState.isCreator) { showToast("只有房主可以开始游戏", 2000); return; }
+  if (gameState.players.length < 1) { showToast("至少需要1人", 2000); return; }
+  startMixedGame();
+}
+
+function setConnStatus(text, color) {
+  var dot = $("conn-dot"), txt = $("conn-text");
+  if (dot && txt) { dot.style.background = color; txt.textContent = text; }
+}
+
+// ============================================================
+// 屏幕 / 模态框
+// ============================================================
+
+function showScreen(name) {
+  $("lobby-screen").classList.toggle("active", name === "lobby");
+  $("game-screen").classList.toggle("active", name === "game");
+  if (name === "game" && isMobile()) {
+    requestFullscreenAndLandscape();
+    checkMobileOrientation();
+  }
+  if (name === "lobby") {
+    hideRotateOverlay();
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(function(){});
+    }
+  }
+}
+
+function toggleChat() {
+  var panel = $("chat-panel"), fab = $("chat-fab");
+  if (panel.style.display === "none") {
+    panel.style.display = "flex";
+    if (fab) fab.style.display = "none";
+  } else {
+    panel.style.display = "none";
+    if (fab) fab.style.display = "block";
+  }
+}
+
+function showToast(text, ms) {
+  var toast = $("toast");
+  toast.textContent = text;
+  toast.classList.add("show");
+  setTimeout(function() { toast.classList.remove("show"); }, ms || 3000);
+}
+
+function hideHuConfirm() {
+  $("hu-confirm-overlay").classList.remove("active");
+  var footer = document.querySelector("#hu-confirm-modal .btn-row");
+  footer.innerHTML = "";
+  var cancelBtn = document.createElement("button");
+  cancelBtn.id = "btn-cancel-hu";
+  cancelBtn.className = "btn btn-secondary";
+  cancelBtn.textContent = "重新考虑";
+  cancelBtn.onclick = hideHuConfirm;
+  footer.appendChild(cancelBtn);
+}
+
+function resetGameState() {
+  gameState.gameStarted = false;
+  gameState.gameOver = false;
+  gameState.deck = [];
+  gameState.remaining = 0;
+  gameState.myHand = [];
+  gameState.myMelds = [];
+  gameState.myDiscards = [];
+  gameState.myDraws = [];
+  gameState.otherInfo = {};
+  gameState.aiHands = {};
+  gameState.turnPhase = "waiting";
+  gameState.canDraw = false;
+  gameState.canDiscard = false;
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = false;
+  gameState.selectedTile = null;
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  gameState.huVotes = {};
+  gameState.huProposer = null;
+}
+
+function restartGameClicked() {
+  resetGameState();
+  hideResult();
+  if (gameState.isCreator) {
+    broadcastGameMsg("restart-game", {});
+    gameState.players = gameState.players.filter(function(p) { return !isAI(p.id); });
+    gameState.players.forEach(function(p) { p.ready = false; });
+  }
+  showScreen("lobby");
+  renderLobby();
+  updateStartBtn();
+}
+
+function backToLobbyClicked() {
+  resetGameState();
+  hideResult();
+  $("create-room-btn").style.display = "inline-block";
+  $("join-room-btn").style.display = "inline-block";
+  $("start-game-btn").style.display = "none";
+  $("room-id-input").value = "";
+  $("nickname").value = "";
+  $("player-list").innerHTML = "";
+  setConnStatus("未连接", "#c0392b");
+  showScreen("lobby");
+}
+
+function hideResult() {
+  $("result-overlay").classList.remove("active");
+}
+
+function showRules() {
+  $("rules-overlay").classList.add("active");
+}
+
+function hideRules() {
+  $("rules-overlay").classList.remove("active");
+}
+
+// ============================================================
+// 人机混战游戏逻辑
+// ============================================================
+
+function startMixedGame() {
+  // 不足4人补AI
+  var aiCount = 4 - gameState.players.length;
+  var aiNames = ["AI-小机", "AI-小器", "AI-小器灵"];
+  for (var i = 0; i < aiCount; i++) {
+    var aiId = "ai-" + (i + 1);
+    var aiSeat = gameState.players.length;
+    gameState.players.push({
+      id: aiId, name: aiNames[i] || ("AI-" + (i+1)),
+      seat: aiSeat, ready: true, isCreator: false, isAI: true
+    });
+    gameState.otherInfo[aiId] = { handCount: 13, melds: [], discards: [] };
+  }
+
+  // 重新分配座位（确保连续）
+  gameState.players.forEach(function(p, i) { p.seat = i; });
+  gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+
+  // 发牌
+  var deck = makeDeck();
+  var hands = {};
+  gameState.aiHands = {};
+  gameState.players.forEach(function(p) {
+    hands[p.id] = [];
+    for (var i = 0; i < 13; i++) hands[p.id].push(deck.pop());
+    if (isAI(p.id)) gameState.aiHands[p.id] = hands[p.id];
+  });
+
+  gameState.deck = deck;
+  gameState.remaining = deck.length;
+  gameState.currentSeat = 0;
+  gameState.gameStarted = true;
+  gameState.gameOver = false;
+  gameState.otherInfo = {};
+  gameState.players.forEach(function(p) {
+    gameState.otherInfo[p.id] = {
+      handCount: p.id === gameState.me.id ? 0 : 13,
+      melds: [], discards: []
+    };
+  });
+
+  if (hands[gameState.me.id]) {
+    gameState.myHand = hands[gameState.me.id];
+    gameState.otherInfo[gameState.me.id].handCount = 0;
+  }
+
+  saveGameState();
+  showScreen("game");
+  requestFullscreenAndLandscape();
+  checkMobileOrientation();
+  renderGame();
+  startTurnRemote(0);
+
+  // 广播开始游戏
+  var startData = {
+    deck: deck, remaining: deck.length, firstSeat: 0,
+    hands: hands, players: gameState.players
+  };
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "broadcast", roomId: gameState.roomId,
+      payload: { type: "start-game", fromId: gameState.me.id, data: startData }
+    }));
+  }
+}
+
+function beginMyTurn() {
+  gameState.turnPhase = "draw";
+  gameState.canDraw = true;
+  renderActionBar();
+  showToast("摸牌: 点击牌库或摸牌按钮", 2500);
+}
+
+function drawCard() {
+  if (!gameState.canDraw || gameState.remaining <= 0 || gameState.gameOver) return;
+  gameState.canDraw = false;
+  gameState.remaining--;
+  var card = gameState.deck.pop() || "";
+  gameState.myHand.push(card);
+  gameState.myDraws.push(card);
+  gameState.turnPhase = "discard";
+  gameState.canDiscard = true;
+  renderHand();
+  renderTileCount();
+  renderActionBar();
+  showToast("摸到: " + card, 2000);
+
+  if (isOnlineMode()) {
+    broadcastGameMsg("draw", { playerId: gameState.me.id, remaining: gameState.remaining });
+  }
+}
+
+function discardTile() {
+  if (!gameState.canDiscard || !gameState.selectedTile || gameState.gameOver) return;
+  var card = gameState.selectedTile;
+  var idx = gameState.myHand.indexOf(card);
+  if (idx !== -1) gameState.myHand.splice(idx, 1);
+  gameState.myDiscards.push(card);
+  gameState.lastDiscard = card;
+  gameState.lastDiscardBy = gameState.myIndex;
+  gameState.selectedTile = null;
+  gameState.canDiscard = false;
+  renderHand();
+  renderDiscards();
+  renderTileCount();
+  renderActionBar();
+  showToast("打出: " + card, 1500);
+
+  var nextSeat = (gameState.currentSeat + 1) % 4;
+  enterWaitingAction(nextSeat, card);
+
+  if (isOnlineMode()) {
+    broadcastGameMsg("discard", {
+      playerId: gameState.me.id, card: card, nextSeat: nextSeat
+    });
+  }
+}
+
+// 进入等待吃碰胡阶段（下家决策）
+function enterWaitingAction(targetSeat, card) {
+  gameState.turnPhase = "waiting-action";
+  gameState.actionTargetSeat = targetSeat;
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = true;
+
+  var targetPlayer = gameState.players[targetSeat];
+  if (!targetPlayer) return;
+
+  if (isAI(targetPlayer.id)) {
+    // AI自动决策
+    if (gameState.isCreator) {
+      setTimeout(function() { aiDecideAction(targetSeat, card); }, 800);
+    }
+  } else if (targetSeat === gameState.myIndex) {
+    // 自己是下家，显示吃碰胡过按钮
+    gameState.canEat = true;
+    gameState.canPong = true;
+    renderActionBar();
+  }
+  // 其他真人玩家可以点胡（canHu已设为true）
+  renderActionBar();
+}
+
+function selectTile(ch) {
+  if (!gameState.canDiscard) { showToast("请先摸牌再选牌", 1500); return; }
+  gameState.selectedTile = ch;
+  renderHand();
+  renderActionBar();
+}
+
+// AI模拟（仅房主端运行）
+function simulateAI(seat) {
+  if (!gameState.isCreator) return;
+  var player = gameState.players[seat];
+  if (!player || !isAI(player.id)) return;
+
+  var aiHand = gameState.aiHands[player.id] || [];
+
+  if (gameState.remaining <= 0) { checkDraw(); return; }
+
+  // AI摸牌
+  gameState.remaining--;
+  var drawnCard = gameState.deck.pop() || "";
+  aiHand.push(drawnCard);
+  gameState.aiHands[player.id] = aiHand;
+  gameState.otherInfo[player.id].handCount = aiHand.length;
+  renderTileCount();
+  renderPlayerInfo();
+
+  setTimeout(function() {
+    // 检查AI是否能胡
+    if (canHu(aiHand)) {
+      // AI胡牌，直接广播
+      showToast(player.name + " 胡牌了！", 3000);
+      var huWords = findHuSolution(aiHand);
+      broadcastGameMsg("hu-propose", {
+        playerId: player.id, name: player.name,
+        hand: aiHand.slice(), melds: []
+      });
+      gameState.huVotes = {};
+      gameState.huVotes[player.id] = true;
+      gameState.huProposer = player.id;
+      // 显示投票弹窗给真人
+      showHuConfirmForAI(player, aiHand);
+      return;
+    }
+
+    // 纯随机出牌
+    var discardCard = aiHand[Math.floor(Math.random() * aiHand.length)];
+    var di = aiHand.indexOf(discardCard);
+    if (di !== -1) aiHand.splice(di, 1);
+    gameState.aiHands[player.id] = aiHand;
+
+    gameState.otherInfo[player.id].discards.push(discardCard);
+    gameState.otherInfo[player.id].handCount = aiHand.length;
+    gameState.lastDiscard = discardCard;
+    gameState.lastDiscardBy = seat;
+
+    renderDiscards();
+    renderPlayerInfo();
+    showToast(player.name + " 打出: " + discardCard, 1500);
+
+    var nextSeat = (seat + 1) % 4;
+    broadcastGameMsg("ai-discard", {
+      playerId: player.id, card: discardCard, nextSeat: nextSeat
+    });
+    enterWaitingAction(nextSeat, discardCard);
+  }, 800);
+}
+
+// AI在等待阶段的决策（仅房主端运行）
+function aiDecideAction(seat, card) {
+  if (!gameState.isCreator) return;
+  var player = gameState.players[seat];
+  if (!player || !isAI(player.id)) return;
+  var aiHand = gameState.aiHands[player.id] || [];
+
+  setTimeout(function() {
+    // 优先级：胡 > 碰 > 吃 > 过
+    // 1. 检查能否胡（加上打出的牌）
+    var testHand = aiHand.concat([card]);
+    if (canHu(testHand)) {
+      aiHand.push(card);
+      gameState.aiHands[player.id] = aiHand;
+      gameState.otherInfo[player.id].handCount = aiHand.length;
+      showToast(player.name + " 胡牌了！", 3000);
+      var huWords = findHuSolution(aiHand);
+      broadcastGameMsg("hu-propose", {
+        playerId: player.id, name: player.name,
+        hand: aiHand.slice(), melds: []
+      });
+      gameState.huVotes = {};
+      gameState.huVotes[player.id] = true;
+      gameState.huProposer = player.id;
+      showHuConfirmForAI(player, aiHand);
+      return;
+    }
+
+    // 2. 检查能否碰（有2张同字），50%概率碰
+    var pongCount = aiHand.filter(function(c) { return c === card; }).length;
+    if (pongCount >= 2 && Math.random() < 0.5) {
+      var removed = 0;
+      aiHand = aiHand.filter(function(c) {
+        if (c === card && removed < 2) { removed++; return false; }
+        return true;
+      });
+      gameState.aiHands[player.id] = aiHand;
+      gameState.otherInfo[player.id].melds.push({ type: "pong", cards: [card, card, card] });
+      gameState.otherInfo[player.id].handCount = aiHand.length;
+      gameState.lastDiscard = null;
+      gameState.lastDiscardBy = -1;
+      gameState.actionTargetSeat = -1;
+      gameState.currentSeat = seat;
+      gameState.turnPhase = "discard";
+      renderMelds();
+      renderPlayerInfo();
+      renderDiscards();
+      showToast(player.name + " 碰了 " + card, 2000);
+      broadcastGameMsg("pong", { playerId: player.id, card: card });
+      // AI碰完后出牌
+      setTimeout(function() { aiDiscardAfterMeld(seat); }, 800);
+      return;
+    }
+
+    // 3. 检查能否吃，30%概率吃
+    var eatOptions = getEatOptions(aiHand, card);
+    if (eatOptions.length > 0 && Math.random() < 0.3) {
+      var word = eatOptions[Math.floor(Math.random() * eatOptions.length)];
+      var temp = aiHand.slice();
+      var usedCard = false;
+      for (var k = 0; k < word.length; k++) {
+        if (word[k] === card && !usedCard) { usedCard = true; continue; }
+        var idx = temp.indexOf(word[k]);
+        if (idx !== -1) temp.splice(idx, 1);
+      }
+      aiHand = temp;
+      gameState.aiHands[player.id] = aiHand;
+      gameState.otherInfo[player.id].melds.push({ type: "eat", cards: word.split(""), source: card });
+      gameState.otherInfo[player.id].handCount = aiHand.length;
+      gameState.lastDiscard = null;
+      gameState.lastDiscardBy = -1;
+      gameState.actionTargetSeat = -1;
+      gameState.currentSeat = seat;
+      gameState.turnPhase = "discard";
+      renderMelds();
+      renderPlayerInfo();
+      renderDiscards();
+      showToast(player.name + " 吃了 " + word, 2000);
+      broadcastGameMsg("eat", { playerId: player.id, word: word, card: card });
+      setTimeout(function() { aiDiscardAfterMeld(seat); }, 800);
+      return;
+    }
+
+    // 4. 过
+    showToast(player.name + " 过", 1000);
+    gameState.lastDiscard = null;
+    gameState.lastDiscardBy = -1;
+    gameState.actionTargetSeat = -1;
+    broadcastGameMsg("pass-action", { playerId: player.id, nextSeat: seat });
+    startTurnRemote(seat);
+  }, 600);
+}
+
+// AI吃碰后出牌
+function aiDiscardAfterMeld(seat) {
+  if (!gameState.isCreator) return;
+  var player = gameState.players[seat];
+  if (!player || !isAI(player.id)) return;
+  var aiHand = gameState.aiHands[player.id] || [];
+
+  // 检查能否胡
+  if (canHu(aiHand)) {
+    showToast(player.name + " 胡牌了！", 3000);
+    var huWords = findHuSolution(aiHand);
+    broadcastGameMsg("hu-propose", {
+      playerId: player.id, name: player.name,
+      hand: aiHand.slice(), melds: []
+    });
+    gameState.huVotes = {};
+    gameState.huVotes[player.id] = true;
+    gameState.huProposer = player.id;
+    showHuConfirmForAI(player, aiHand);
+    return;
+  }
+
+  // 随机出牌
+  var discardCard = aiHand[Math.floor(Math.random() * aiHand.length)];
+  var di = aiHand.indexOf(discardCard);
+  if (di !== -1) aiHand.splice(di, 1);
+  gameState.aiHands[player.id] = aiHand;
+  gameState.otherInfo[player.id].discards.push(discardCard);
+  gameState.otherInfo[player.id].handCount = aiHand.length;
+  gameState.lastDiscard = discardCard;
+  gameState.lastDiscardBy = seat;
+  renderDiscards();
+  renderPlayerInfo();
+  showToast(player.name + " 打出: " + discardCard, 1500);
+
+  var nextSeat = (seat + 1) % 4;
+  broadcastGameMsg("ai-discard", {
+    playerId: player.id, card: discardCard, nextSeat: nextSeat
+  });
+  enterWaitingAction(nextSeat, discardCard);
+}
+
+function showHuConfirmForAI(player, hand) {
+  $("hu-vote-status").textContent = player.name + " 申请胡牌，请真人投票：";
+  $("hu-vote-list").innerHTML = "";
+
+  var handDiv = document.createElement("div");
+  handDiv.style.textAlign = "center";
+  handDiv.style.margin = "12px 0";
+  handDiv.innerHTML = "<div style='font-size:13px;color:var(--muted);margin-bottom:8px'>" + player.name + " 的牌面：</div>";
+  var tileRow = document.createElement("div");
+  tileRow.style.display = "flex";
+  tileRow.style.gap = "4px";
+  tileRow.style.justifyContent = "center";
+  tileRow.style.flexWrap = "wrap";
+  hand.forEach(function(ch) { tileRow.appendChild(createSmallTile(ch)); });
+  handDiv.appendChild(tileRow);
+  $("hu-vote-list").appendChild(handDiv);
+
+  var footer = document.querySelector("#hu-confirm-modal .btn-row");
+  footer.innerHTML = "";
+
+  var agreeBtn = document.createElement("button");
+  agreeBtn.className = "btn btn-gold";
+  agreeBtn.textContent = "同意胡牌";
+  agreeBtn.onclick = function() {
+    gameState.huVotes[gameState.me.id] = true;
+    broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: true });
+    agreeBtn.disabled = true;
+    agreeBtn.textContent = "已同意";
+    if (rejectBtn) rejectBtn.disabled = true;
+    updateHuConfirmUI();
+    checkVotesComplete();
+  };
+  footer.appendChild(agreeBtn);
+
+  var rejectBtn = document.createElement("button");
+  rejectBtn.className = "btn btn-secondary";
+  rejectBtn.textContent = "驳回胡牌";
+  rejectBtn.onclick = function() {
+    gameState.huVotes[gameState.me.id] = false;
+    broadcastGameMsg("hu-vote", { playerId: gameState.me.id, vote: false });
+    rejectBtn.disabled = true;
+    rejectBtn.textContent = "已驳回";
+    if (agreeBtn) agreeBtn.disabled = true;
+    updateHuConfirmUI();
+    checkVotesComplete();
+  };
+  footer.appendChild(rejectBtn);
+
+  $("hu-confirm-overlay").classList.add("active");
+}
+
+function checkDraw() {
+  gameState.gameOver = true;
+  gameState.turnPhase = "gameover";
+  $("result-winner").textContent = "流局";
+  $("result-body").innerHTML = "<div style='color:var(--muted);font-size:16px'>牌库已清空，没有人胡牌</div>";
+  $("result-stats").innerHTML = "";
+  $("result-overlay").classList.add("active");
+  clearGameState();
+}
+
+function attemptHu() {
+  if (!gameState.canHu || gameState.gameOver) return;
+  // 真人胡牌不校验词库，直接走投票流程
+  showHuConfirm();
+}
+
+function showHuConfirm() {
+  $("hu-confirm-overlay").classList.add("active");
+  gameState.huVotes = {};
+  gameState.huVotes[gameState.me.id] = true;
+  gameState.huProposer = gameState.me.id;
+
+  var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== gameState.me.id; });
+
+  if (humanVoters.length === 0) {
+    // 只有自己一个真人，直接胡
+    $("hu-vote-status").textContent = "单机/无其他真人，自动胡牌";
+    $("hu-vote-list").innerHTML = "";
+    var footer = document.querySelector("#hu-confirm-modal .btn-row");
+    footer.innerHTML = "";
+    var btn = document.createElement("button");
+    btn.className = "btn btn-gold";
+    btn.textContent = "确认胡牌";
+    btn.onclick = function() {
+      hideHuConfirm();
+      var huWords = findHuSolution(gameState.myHand);
+      endOnlineGame(gameState.me.id, huWords);
+      broadcastGameMsg("game-over", { winnerId: gameState.me.id, huWords: huWords });
+    };
+    footer.appendChild(btn);
+  } else {
+    // 有其他真人，发起投票
+    $("hu-vote-status").textContent = "等待 " + humanVoters.length + " 名真人确认...";
+    $("hu-vote-list").innerHTML = "";
+
+    var handDiv = document.createElement("div");
+    handDiv.style.textAlign = "center";
+    handDiv.style.margin = "12px 0";
+    handDiv.innerHTML = "<div style='font-size:13px;color:var(--muted);margin-bottom:8px'>你的牌面：</div>";
+    var tileRow = document.createElement("div");
+    tileRow.style.display = "flex";
+    tileRow.style.gap = "4px";
+    tileRow.style.justifyContent = "center";
+    tileRow.style.flexWrap = "wrap";
+    gameState.myHand.forEach(function(ch) { tileRow.appendChild(createSmallTile(ch)); });
+    handDiv.appendChild(tileRow);
+    $("hu-vote-list").appendChild(handDiv);
+
+    humanVoters.forEach(function(p) {
+      var item = document.createElement("div");
+      item.className = "vote-item";
+      item.textContent = p.name + " ";
+      var span = document.createElement("span");
+      span.className = "vote-pending";
+      span.textContent = "待确认";
+      item.appendChild(span);
+      $("hu-vote-list").appendChild(item);
+    });
+
+    var footer = document.querySelector("#hu-confirm-modal .btn-row");
+    footer.innerHTML = "";
+    var cancelBtn = document.createElement("button");
+    cancelBtn.className = "btn btn-secondary";
+    cancelBtn.textContent = "取消胡牌";
+    cancelBtn.onclick = function() {
+      broadcastGameMsg("hu-cancel", { playerId: gameState.me.id, name: gameState.me.name });
+      gameState.huVotes = {};
+      gameState.huProposer = null;
+      hideHuConfirm();
+      showToast("已取消胡牌", 1500);
+    };
+    footer.appendChild(cancelBtn);
+
+    broadcastGameMsg("hu-propose", {
+      playerId: gameState.me.id, name: gameState.me.name,
+      hand: gameState.myHand.slice(), melds: gameState.myMelds
+    });
+  }
+}
+
+// 检查手牌加一张牌是否能组成词库中的词
+function canEatWith(hand, card) {
+  if (!hand || !card) return false;
+  for (var i = 0; i < HU_WORDS.length; i++) {
+    var word = HU_WORDS[i];
+    if (word.length < 2 || word.length > hand.length + 1) continue;
+    if (word.indexOf(card) === -1) continue;
+    // 检查手牌是否包含word中除card外的所有字
+    var temp = hand.slice();
+    var ok = true;
+    var usedCard = false;
+    for (var k = 0; k < word.length; k++) {
+      if (word[k] === card && !usedCard) {
+        usedCard = true;
+        continue;
+      }
+      var idx = temp.indexOf(word[k]);
+      if (idx === -1) { ok = false; break; }
+      temp.splice(idx, 1);
+    }
+    if (ok && usedCard) return true;
+  }
+  return false;
+}
+
+// 获取所有能吃的词组
+function getEatOptions(hand, card) {
+  var options = [];
+  for (var i = 0; i < HU_WORDS.length; i++) {
+    var word = HU_WORDS[i];
+    if (word.length < 2 || word.length > hand.length + 1) continue;
+    if (word.indexOf(card) === -1) continue;
+    var temp = hand.slice();
+    var ok = true;
+    var usedCard = false;
+    for (var k = 0; k < word.length; k++) {
+      if (word[k] === card && !usedCard) { usedCard = true; continue; }
+      var idx = temp.indexOf(word[k]);
+      if (idx === -1) { ok = false; break; }
+      temp.splice(idx, 1);
+    }
+    if (ok && usedCard) options.push(word);
+  }
+  return options;
+}
+
+function passAction() {
+  if (gameState.turnPhase !== "waiting-action") return;
+  if (gameState.actionTargetSeat !== gameState.myIndex) return;
+
+  showToast("过", 1000);
+  var nextSeat = gameState.actionTargetSeat;
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = false;
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+
+  if (isOnlineMode()) {
+    broadcastGameMsg("pass-action", { playerId: gameState.me.id, nextSeat: nextSeat });
+  }
+  startTurnRemote(nextSeat);
+}
+
+function attemptEat() {
+  if (gameState.turnPhase !== "waiting-action") return;
+  if (gameState.actionTargetSeat !== gameState.myIndex) return;
+  if (!gameState.lastDiscard) return;
+  var options = getEatOptions(gameState.myHand, gameState.lastDiscard);
+  if (options.length === 0) { showToast("无法组成词语", 1500); return; }
+  showEatDialog(options);
+}
+
+function showEatDialog(options) {
+  var body = "<div style='font-size:14px;color:var(--muted);margin-bottom:12px'>上家打出: <span style='color:var(--gold);font-weight:700'>" + gameState.lastDiscard + "</span><br>选择要组成的词语：</div>";
+  var grid = document.createElement("div");
+  grid.style.display = "flex";
+  grid.style.flexWrap = "wrap";
+  grid.style.gap = "8px";
+  grid.style.justifyContent = "center";
+  options.forEach(function(word) {
+    var btn = document.createElement("button");
+    btn.className = "btn btn-secondary";
+    btn.style.width = "auto";
+    btn.style.padding = "10px 16px";
+    btn.textContent = word;
+    btn.onclick = function() { confirmEat(word); };
+    grid.appendChild(btn);
+  });
+  $("modal-title").textContent = "选择吃牌组词";
+  $("modal-body").innerHTML = body;
+  $("modal-body").appendChild(grid);
+  $("modal-footer").innerHTML = "<button class='btn btn-secondary' onclick='closeModal()'>取消</button>";
+  $("modal-overlay").classList.add("active");
+}
+
+function confirmEat(word) {
+  closeModal();
+  var card = gameState.lastDiscard;
+  // 从手牌移除word中除card外的字
+  var temp = gameState.myHand.slice();
+  var usedCard = false;
+  for (var k = 0; k < word.length; k++) {
+    if (word[k] === card && !usedCard) { usedCard = true; continue; }
+    var idx = temp.indexOf(word[k]);
+    if (idx !== -1) temp.splice(idx, 1);
+  }
+  gameState.myHand = temp;
+  gameState.myMelds.push({ type: "eat", cards: word.split(""), source: card });
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = true;
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  gameState.turnPhase = "discard";
+  gameState.canDiscard = true;
+  gameState.currentSeat = gameState.myIndex;
+
+  renderHand();
+  renderMelds();
+  renderActionBar();
+  showToast("吃! " + word, 2000);
+
+  if (isOnlineMode()) {
+    broadcastGameMsg("eat", {
+      playerId: gameState.me.id, word: word, card: card
+    });
+  }
+}
+
+function attemptPong() {
+  if (gameState.turnPhase !== "waiting-action") return;
+  if (gameState.actionTargetSeat !== gameState.myIndex) return;
+  if (!gameState.lastDiscard) return;
+  var count = gameState.myHand.filter(function(c) { return c === gameState.lastDiscard; }).length;
+  if (count < 2) { showToast("没有足够的牌碰", 1500); return; }
+
+  var card = gameState.lastDiscard;
+  var removed = 0;
+  gameState.myHand = gameState.myHand.filter(function(c) {
+    if (c === card && removed < 2) { removed++; return false; }
+    return true;
+  });
+  gameState.myMelds.push({ type: "pong", cards: [card, card, card] });
+  gameState.canEat = false;
+  gameState.canPong = false;
+  gameState.canHu = true;
+  gameState.lastDiscard = null;
+  gameState.lastDiscardBy = -1;
+  gameState.actionTargetSeat = -1;
+  gameState.turnPhase = "discard";
+  gameState.canDiscard = true;
+  gameState.currentSeat = gameState.myIndex;
+
+  renderHand();
+  renderMelds();
+  renderActionBar();
+  showToast("碰! " + card + " x3", 2000);
+
+  if (isOnlineMode()) {
+    broadcastGameMsg("pong", { playerId: gameState.me.id, card: card });
+  }
+}
+
+// ============================================================
+// 渲染
+// ============================================================
+
+function findPlayerBySeat(seat) {
+  return gameState.players.find(function(p) { return p.seat === seat; });
+}
+
+function seatFromPos(pos) {
+  return { bottom: 0, right: 1, top: 2, left: 3 }[pos];
+}
+
+function renderLobby() {
+  var list = $("player-list");
+  list.innerHTML = "";
+  if (gameState.players.length === 0) return;
+  gameState.players.forEach(function(p) {
+    var div = document.createElement("div");
+    div.className = "player-item";
+    var left = document.createElement("span");
+    left.style.display = "flex";
+    left.style.alignItems = "center";
+    left.style.gap = "8px";
+    var dot = document.createElement("span");
+    dot.className = "player-dot " + (p.ready ? "ready" : "notready");
+    left.appendChild(dot);
+    var nameSpan = document.createElement("span");
+    nameSpan.textContent = p.name + (p.isCreator ? " (房主)" : "");
+    left.appendChild(nameSpan);
+    if (isAI(p.id)) {
+      var tag = document.createElement("span");
+      tag.className = "player-tag ai";
+      tag.textContent = "AI";
+      left.appendChild(tag);
+    }
+    var status = document.createElement("span");
+    status.style.fontSize = "12px";
+    status.style.color = p.ready ? "var(--my-turn)" : "var(--muted)";
+    status.textContent = isAI(p.id) ? "电脑" : (p.ready ? "已准备" : "未就绪");
+    div.appendChild(left);
+    div.appendChild(status);
+    list.appendChild(div);
+  });
+}
+
+function renderGame() {
+  renderTileCount();
+  renderPlayerInfo();
+  renderMelds();
+  renderDiscards();
+  renderActionBar();
+  updateTurnIndicator();
+  renderHand();
+}
+
+function renderTileCount() {
+  $("tile-count").textContent = gameState.remaining || 0;
+  $("tile-count").style.color = gameState.remaining > 0 ? "var(--gold)" : "var(--accent)";
+}
+
+function renderPlayerInfo() {
+  var positions = [
+    { pos: "bottom", seat: 0 }, { pos: "right", seat: 1 },
+    { pos: "top", seat: 2 }, { pos: "left", seat: 3 }
+  ];
+  positions.forEach(function(m) {
+    var p = findPlayerBySeat(m.seat);
+    var nameEl = $("name-" + m.pos);
+    var statusEl = $("status-" + m.pos);
+    if (p) {
+      nameEl.textContent = p.name + (m.seat === gameState.myIndex ? " (我)" : "") + (isAI(p.id) ? " [AI]" : "");
+      nameEl.classList.toggle("me", m.seat === gameState.myIndex);
+      nameEl.classList.toggle("active", gameState.currentSeat === m.seat);
+      if (gameState.currentSeat === m.seat) {
+        statusEl.textContent = "● 回合中";
+        statusEl.style.color = "var(--my-turn)";
+      } else {
+        var info = gameState.otherInfo[p.id];
+        if (info && m.seat !== gameState.myIndex) {
+          statusEl.textContent = info.handCount + "张";
+          statusEl.style.color = "var(--muted)";
+        } else {
+          statusEl.textContent = "";
+        }
+      }
+    } else {
+      nameEl.textContent = " — ";
+      nameEl.className = "player-name";
+      statusEl.textContent = "";
+    }
+  });
+}
+
+function renderHand() {
+  var area = $("hand-bottom");
+  area.innerHTML = "";
+  if (gameState.myHand.length === 0) return;
+  gameState.myHand.forEach(function(ch, i) {
+    var tile = createTile(ch);
+    tile.dataset.card = ch;
+    tile.dataset.index = i;
+    tile.draggable = true;
+    if (gameState.selectedTile === ch && gameState.canDiscard) tile.classList.add("selected");
+    tile.onclick = function() { selectTile(ch); };
+    tile.ondragstart = function(e) {
+      dragSourceIndex = i;
+      e.dataTransfer.effectAllowed = "move";
+      tile.style.opacity = "0.4";
+    };
+    tile.ondragover = function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    };
+    tile.ondragenter = function() {
+      tile.style.borderColor = "var(--gold)";
+      tile.style.boxShadow = "0 0 12px var(--gold)";
+    };
+    tile.ondragleave = function() {
+      tile.style.borderColor = "";
+      tile.style.boxShadow = "";
+    };
+    tile.ondrop = function(e) {
+      e.preventDefault();
+      tile.style.borderColor = "";
+      tile.style.boxShadow = "";
+      var targetIndex = i;
+      if (dragSourceIndex !== -1 && dragSourceIndex !== targetIndex) {
+        var temp = gameState.myHand[dragSourceIndex];
+        gameState.myHand[dragSourceIndex] = gameState.myHand[targetIndex];
+        gameState.myHand[targetIndex] = temp;
+        renderHand();
+      }
+    };
+    tile.ondragend = function() {
+      tile.style.opacity = "";
+      dragSourceIndex = -1;
+    };
+    area.appendChild(tile);
+  });
+}
+
+function renderActionBar() {
+  var bar = $("action-bar");
+  bar.innerHTML = "";
+  bar.style.display = "none";
+
+  if (gameState.gameOver) return;
+
+  // 等待吃碰胡阶段
+  if (gameState.turnPhase === "waiting-action") {
+    var isTarget = gameState.actionTargetSeat === gameState.myIndex;
+    if (isTarget) {
+      bar.style.display = "flex";
+      // 吃牌按钮（检查是否能组成词）
+      var canEatNow = gameState.canEat && gameState.lastDiscard && canEatWith(gameState.myHand, gameState.lastDiscard);
+      var eatBtn = document.createElement("button");
+      eatBtn.className = "action-btn secondary";
+      eatBtn.textContent = "吃";
+      eatBtn.disabled = !canEatNow;
+      eatBtn.onclick = attemptEat;
+      bar.appendChild(eatBtn);
+      // 碰牌按钮（检查是否有2张同字）
+      var pongCount = gameState.myHand.filter(function(c) { return c === gameState.lastDiscard; }).length;
+      var canPongNow = gameState.canPong && pongCount >= 2;
+      var pongBtn = document.createElement("button");
+      pongBtn.className = "action-btn secondary";
+      pongBtn.textContent = "碰";
+      pongBtn.disabled = !canPongNow;
+      pongBtn.onclick = attemptPong;
+      bar.appendChild(pongBtn);
+      // 胡牌按钮
+      var huBtn = document.createElement("button");
+      huBtn.className = "action-btn gold";
+      huBtn.textContent = "胡";
+      huBtn.onclick = attemptHu;
+      bar.appendChild(huBtn);
+      // 过按钮
+      var passBtn = document.createElement("button");
+      passBtn.className = "action-btn primary";
+      passBtn.textContent = "过";
+      passBtn.onclick = passAction;
+      bar.appendChild(passBtn);
+    } else {
+      // 非下家只能胡
+      bar.style.display = "flex";
+      var huBtn2 = document.createElement("button");
+      huBtn2.className = "action-btn gold";
+      huBtn2.textContent = "胡";
+      huBtn2.onclick = attemptHu;
+      bar.appendChild(huBtn2);
+    }
+    return;
+  }
+
+  var isMyTurn = gameState.currentSeat === gameState.myIndex;
+  if (!isMyTurn) return;
+  if (gameState.turnPhase === "waiting") return;
+
+  if (gameState.turnPhase === "draw") {
+    if (gameState.canDraw) {
+      bar.style.display = "flex";
+      var db = document.createElement("button");
+      db.className = "action-btn primary";
+      db.textContent = "摸牌 (" + gameState.remaining + " 张)";
+      db.onclick = drawCard;
+      bar.appendChild(db);
+    } else {
+      bar.style.display = "flex";
+      var wb = document.createElement("button");
+      wb.className = "action-btn secondary";
+      wb.disabled = true;
+      wb.textContent = "等待摸牌...";
+      bar.appendChild(wb);
+    }
+    return;
+  }
+
+  if (gameState.turnPhase === "discard") {
+    bar.style.display = "flex";
+    var db2 = document.createElement("button");
+    db2.className = "action-btn primary";
+    db2.textContent = "打出 (" + (gameState.selectedTile || "") + ")";
+    db2.disabled = !gameState.selectedTile;
+    db2.onclick = discardTile;
+    bar.appendChild(db2);
+
+    var hb = document.createElement("button");
+    hb.className = "action-btn gold";
+    hb.textContent = "胡";
+    hb.onclick = attemptHu;
+    bar.appendChild(hb);
+  }
+}
+
+function renderMelds() {
+  ["bottom", "top", "left", "right"].forEach(function(pos) {
+    var seat = seatFromPos(pos);
+    var area = $("meld-" + pos);
+    area.innerHTML = "";
+    var melds = [];
+    if (pos === "bottom") {
+      melds = gameState.myMelds;
+    } else {
+      var p = findPlayerBySeat(seat);
+      if (p && gameState.otherInfo[p.id]) melds = gameState.otherInfo[p.id].melds || [];
+    }
+    if (melds && melds.length > 0) {
+      melds.forEach(function(meld) {
+        var g = document.createElement("div");
+        g.className = "meld-group";
+        var cards = meld.cards || [];
+        cards.forEach(function(c) {
+          var t = createSmallTile(c);
+          t.classList.add("melded");
+          g.appendChild(t);
+        });
+        area.appendChild(g);
+      });
+    }
+  });
+}
+
+function renderDiscards() {
+  ["bottom", "right", "top", "left"].forEach(function(pos) {
+    var seat = seatFromPos(pos);
+    var area = $("discard-" + pos);
+    area.innerHTML = "";
+    var discards = [];
+    if (seat === gameState.myIndex) {
+      discards = gameState.myDiscards;
+    } else {
+      var p = findPlayerBySeat(seat);
+      if (p && gameState.otherInfo[p.id]) discards = gameState.otherInfo[p.id].discards || [];
+    }
+    if (discards && discards.length > 0) {
+      discards.forEach(function(ch, i) {
+        var t = createSmallTile(ch);
+        t.classList.add("discarded");
+        if (seat === gameState.lastDiscardBy && i === discards.length - 1) {
+          t.classList.add("last-discard");
+        }
+        area.appendChild(t);
+      });
+    }
+  });
+}
+
+function updateTurnIndicator() {
+  var el = $("turn-indicator");
+  if (gameState.gameOver) {
+    el.textContent = "游戏结束";
+    el.style.color = "var(--accent)";
+    return;
+  }
+  if (gameState.currentSeat === gameState.myIndex) {
+    el.textContent = "● 你的回合";
+    el.style.color = "var(--my-turn)";
+    el.style.textShadow = "0 0 10px rgba(74,222,128,0.7)";
+  } else {
+    var p = findPlayerBySeat(gameState.currentSeat);
+    if (p) el.textContent = p.name + (isAI(p.id) ? " [AI]" : "") + " 的回合";
+    el.style.color = "var(--text)";
+    el.style.textShadow = "none";
+  }
+}
+
+function closeModal() {
+  $("modal-overlay").classList.remove("active");
+}
+
+function createTile(ch) {
+  var div = document.createElement("div");
+  div.className = "tile";
+  div.textContent = ch;
+  div.style.fontSize = "22px";
+  div.dataset.card = ch;
+  return div;
+}
+
+function createSmallTile(ch) {
+  var div = document.createElement("div");
+  div.className = "tile";
+  div.textContent = ch;
+  div.style.fontSize = "14px";
+  div.dataset.card = ch;
+  return div;
+}
+
+// ============================================================
+// 聊天
+// ============================================================
+
+function sendMessage() {
+  var input = $("chat-input");
+  var text = input.value.trim();
+  if (!text) return;
+  addChatMessage(gameState.me ? gameState.me.name : "我", text, true);
+  input.value = "";
+  if (isOnlineMode()) {
+    broadcastGameMsg("chat", { name: gameState.me.name, text: text });
+  }
+}
+
+function addChatMessage(sender, text, isMe) {
+  var msgs = $("chat-messages");
+  var div = document.createElement("div");
+  div.className = "chat-msg" + (isMe ? " me" : "");
+  var senderEl = document.createElement("div");
+  senderEl.className = "sender";
+  senderEl.textContent = sender;
+  var textEl = document.createElement("div");
+  textEl.textContent = text;
+  textEl.style.fontSize = "13px";
+  div.appendChild(senderEl);
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+
+function init() {
+  var params = new URLSearchParams(window.location.search);
+  var roomParam = params.get("room");
+  if (roomParam) $("room-id-input").value = roomParam;
+
+  var savedNick = localStorage.getItem("mahjong_nickname");
+  if (savedNick) $("nickname").value = savedNick;
+
+  var savedSignaling = localStorage.getItem("mahjong_signaling_url");
+  if (savedSignaling && $("signaling-url")) $("signaling-url").value = savedSignaling;
+
+  $("create-room-btn").onclick = createRoom;
+  $("join-room-btn").onclick = joinRoomByInput;
+  $("start-game-btn").onclick = startGameClicked;
+  $("send-msg").onclick = sendMessage;
+  $("chat-input").onkeypress = function(e) { if (e.key === "Enter") sendMessage(); };
+  $("chat-toggle").onclick = toggleChat;
+  $("chat-fab").onclick = toggleChat;
+  $("btn-cancel-hu").onclick = hideHuConfirm;
+  $("btn-restart").onclick = restartGameClicked;
+  $("btn-back-lobby").onclick = backToLobbyClicked;
+  $("rules-btn-lobby").onclick = showRules;
+  $("rules-btn-game").onclick = showRules;
+  $("rules-close-btn").onclick = hideRules;
+  $("rules-overlay").onclick = function(e) { if (e.target === this) hideRules(); };
+  $("remaining-tiles").onclick = function() {
+    if (gameState.canDraw) drawCard();
+    else showToast("牌库还有 " + gameState.remaining + " 张", 2000);
+  };
+
+  // 页面关闭前通知其他玩家
+  window.addEventListener("beforeunload", function() {
+    if (gameState.gameStarted && !gameState.gameOver && isOnlineMode()) {
+      broadcastGameMsg("player-left", { id: gameState.me.id });
+    }
+  });
+
+  // 手机端：屏幕方向变化监听
+  window.addEventListener("orientationchange", function() {
+    setTimeout(checkMobileOrientation, 200);
+  });
+  window.addEventListener("resize", function() {
+    if (isMobile()) checkMobileOrientation();
+  });
+
+  // 旋转确认按钮
+  var rotateBtn = $("rotate-confirm-btn");
+  if (rotateBtn) {
+    rotateBtn.onclick = function() {
+      if (isPortrait()) {
+        showToast("请先将手机横过来", 2000);
+        return;
+      }
+      hideRotateOverlay();
+      requestFullscreenAndLandscape();
+    };
+  }
+
+  renderLobby();
+}
+
+init();
+</script>
+</body>
+</html>

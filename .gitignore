@@ -1,0 +1,11 @@
+﻿node_modules/
+*.py
+screen*.png
+user_upload*.png
+test_*.js
+check_*.js
+verify_*.py
+patch_*.py
+multi_debug.py
+append_js.py
+DEPLOY.md
