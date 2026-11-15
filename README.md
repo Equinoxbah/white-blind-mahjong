@@ -33,7 +33,17 @@
 
 ### 在线游玩
 
-> 说明：本公开仓库的代码已移除声网凭证（占位符），因此直接部署本仓库到 GitHub Pages 将无法联机。可联机版本由私有仓库维护部署，不对外公开地址。
+🎮 **直接游玩（无需注册、无需部署）**：
+
+## 👉 [white-blind-mahjong-private.pages.dev](https://white-blind-mahjong-private.pages.dev)
+
+> 打开即可玩，支持单机人机混战和真人联机。手机、电脑都可以。
+
+---
+
+> **关于自行部署**：本公开仓库的代码已移除声网凭证（`functions/api/token.js` 需要 `AGORA_APP_ID` / `AGORA_APP_CERT` 环境变量），因此**直接部署本仓库将无法联机**，但单机模式可正常游玩。
+>
+> 如需完整的联机功能，可参考 [functions/api/token.js](functions/api/token.js) 与 [worker/README.md](worker/README.md) 配置自己的令牌签发服务（Cloudflare 免费额度足够）。
 
 ### 本地运行
 
@@ -156,8 +166,9 @@ white-blind-mahjong/
 ## 📝 注意事项
 
 - 默认使用声网 RTM 公共通道联机，需要配套的 Cloudflare Pages Function 提供联机通行证（token），本仓库不含任何密钥
-- 自建信令模式下，部分运营商网络（如移动 4G）可能 WebRTC 打洞失败，建议切换声网公共通道
-- STUN 保留 3 个（2 个 Google + 1 个第三方），用于自建信令模式下的 NAT 穿透
+- **ICE 配置**：6 个 STUN（Google / 腾讯 / 阿里 / 小米 / B站）+ 6 个 TURN 中继，用于自建信令模式下的 NAT 穿透
+- **关于 TURN**：WebRTC 在对称 NAT（移动 4G 常见）下无法靠打洞连通，必须依赖 TURN 中继。项目内置了公开免费 TURN（`turn.evan-brass.net`、`global.relay.metered.ca`）作为兜底；这类免费服务可能随时失效，如遇自建模式连不上，建议直接使用声网通道
+- **自建模式适用范围**：同一 WiFi 或双方网络可打洞时体验最佳；跨运营商移动网络下即使有 TURN 也可能因中继带宽受限而卡顿
 - iOS Safari 对横屏锁定 API 支持有限，可能需手动旋转手机
 - 部分公司/学校网络会屏蔽 WebRTC，可切换手机热点测试
 - 对局状态保存在 localStorage（key 为 `mahjong_save_房间号`），重进同房间可恢复
