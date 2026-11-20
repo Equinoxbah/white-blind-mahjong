@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -21,7 +21,13 @@
   --shadow:0 4px 12px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;
+  /* 关掉下拉刷新和滚动链，避免第三方浏览器把手势解释成音量/亮度调节 */
+  overscroll-behavior:none;overscroll-behavior-y:none;touch-action:manipulation}
+html{overscroll-behavior:none;overscroll-behavior-y:none}
+/* CSS 伪全屏：第三方浏览器不走原生 Fullscreen API */
+html.pseudo-fs,html.pseudo-fs body{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:var(--fs-h,100dvh);overflow:hidden}
+html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 #app{display:flex;flex-direction:column;height:100vh;width:100vw}
 .screen{display:none;flex-direction:column;height:100%;width:100%}
 .screen.active{display:flex}
@@ -70,6 +76,10 @@ body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;b
 .tile.special{color:var(--gold);text-shadow:0 0 8px rgba(255,215,0,.6)}
 .hand-area{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;min-height:60px}
 .hand-area .tile{width:48px;height:64px;font-size:22px}
+/* 手牌拖动：禁止触摸时触发页面滚动/长按选中，交给 Pointer Events */
+#hand-bottom{touch-action:none}
+#hand-bottom .tile{touch-action:none;-webkit-user-drag:none;-webkit-tap-highlight-color:transparent}
+#hand-bottom .tile.dragging{transition:none;box-shadow:0 10px 22px rgba(0,0,0,.55);border-color:var(--gold)}
 .meld-group{display:flex;gap:2px;background:rgba(0,0,0,.2);padding:4px 6px;border-radius:6px;margin:2px}
 .meld-area{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;min-height:56px}
 .discard-area{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;min-height:40px;max-height:120px;overflow-y:auto}
@@ -684,7 +694,7 @@ var gameState = {
   huProposer: null
 };
 
-var dragSourceIndex = -1;
+var dragSourceIndex = -1;   // 已弃用：拖动改由 dragState 管理，保留仅为兼容旧引用
 
 // 手机端检测与横屏控制
 function isMobile() {
@@ -693,6 +703,7 @@ function isMobile() {
 function isPortrait() {
   return window.innerHeight > window.innerWidth;
 }
+
 function showRotateOverlay() {
   var ov = $("rotate-overlay");
   if (ov) ov.classList.add("active");
@@ -701,21 +712,61 @@ function hideRotateOverlay() {
   var ov = $("rotate-overlay");
   if (ov) ov.classList.remove("active");
 }
+
+// 第三方浏览器（X5/UC/夸克/QQ/百度/微博等）会把原生全屏当成"播放器全屏"接管，
+// 上滑手势被解释成音量/亮度调节。这类浏览器一律改用 CSS 伪全屏。
+function isThirdPartyBrowser() {
+  var ua = navigator.userAgent;
+  if (/MicroMessenger|QQBrowser|MQQBrowser|UCBrowser|Quark|BaiduHD|Weibo|XWEB|MxBrowser|LieBao|2345Explorer/i.test(ua)) return true;
+  // X5 内核标志
+  if (/X5\/|TBS\//i.test(ua)) return true;
+  return false;
+}
+
+// CSS 伪全屏：只是把页面铺满视口，不碰 Fullscreen API
+function enablePseudoFullscreen() {
+  if (document.documentElement.classList.contains("pseudo-fs")) return;
+  document.documentElement.classList.add("pseudo-fs");
+  var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  document.documentElement.style.setProperty("--fs-h", vh + "px");
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock("landscape").catch(function(){});
+  }
+}
+function disablePseudoFullscreen() {
+  document.documentElement.classList.remove("pseudo-fs");
+  document.documentElement.style.removeProperty("--fs-h");
+}
+
 function requestFullscreenAndLandscape() {
   if (!isMobile()) return;
-  // 请求全屏
-  var el = document.documentElement;
-  if (el.requestFullscreen) {
-    el.requestFullscreen().catch(function(){});
-  } else if (el.webkitRequestFullscreen) {
-    el.webkitRequestFullscreen();
+
+  // 第三方浏览器：只做伪全屏，避免被当成视频播放器接管手势
+  if (isThirdPartyBrowser()) {
+    enablePseudoFullscreen();
+    return;
   }
-  // 请求横屏锁定（需要全屏后才生效）
+
+  var el = document.documentElement;
+  var p = null;
+  if (el.requestFullscreen) p = el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) p = el.webkitRequestFullscreen();
+  if (p && p.catch) p.catch(function(){ enablePseudoFullscreen(); });
+
+  // 原生全屏拿不到（被浏览器拒绝/不支持）时兜底伪全屏
   setTimeout(function() {
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!fsEl) enablePseudoFullscreen();
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock("landscape").catch(function(){});
     }
-  }, 300);
+  }, 350);
+}
+function exitFullscreenIfAny() {
+  disablePseudoFullscreen();
+  var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fsEl && document.exitFullscreen) document.exitFullscreen().catch(function(){});
+  else if (fsEl && document.webkitExitFullscreen) document.webkitExitFullscreen();
 }
 function checkMobileOrientation() {
   if (!isMobile()) return;
@@ -2198,9 +2249,7 @@ function showScreen(name) {
   }
   if (name === "lobby") {
     hideRotateOverlay();
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(function(){});
-    }
+    exitFullscreenIfAny();
   }
 }
 
@@ -2992,44 +3041,92 @@ function renderHand() {
     var tile = createTile(ch);
     tile.dataset.card = ch;
     tile.dataset.index = i;
-    tile.draggable = true;
     if (gameState.selectedTile === ch && gameState.canDiscard) tile.classList.add("selected");
     tile.onclick = function() { selectTile(ch); };
-    tile.ondragstart = function(e) {
-      dragSourceIndex = i;
-      e.dataTransfer.effectAllowed = "move";
-      tile.style.opacity = "0.4";
-    };
-    tile.ondragover = function(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-    };
-    tile.ondragenter = function() {
-      tile.style.borderColor = "var(--gold)";
-      tile.style.boxShadow = "0 0 12px var(--gold)";
-    };
-    tile.ondragleave = function() {
-      tile.style.borderColor = "";
-      tile.style.boxShadow = "";
-    };
-    tile.ondrop = function(e) {
-      e.preventDefault();
-      tile.style.borderColor = "";
-      tile.style.boxShadow = "";
-      var targetIndex = i;
-      if (dragSourceIndex !== -1 && dragSourceIndex !== targetIndex) {
-        var temp = gameState.myHand[dragSourceIndex];
-        gameState.myHand[dragSourceIndex] = gameState.myHand[targetIndex];
-        gameState.myHand[targetIndex] = temp;
-        renderHand();
-      }
-    };
-    tile.ondragend = function() {
-      tile.style.opacity = "";
-      dragSourceIndex = -1;
-    };
+
+    // 拖动排序：用 Pointer Events，鼠标与触摸都支持
+    // （原 HTML5 draggable 在移动端浏览器完全不触发 onDragStart）
+    tile.addEventListener("pointerdown", function(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      beginTileDrag(tile, i, e);
+    });
     area.appendChild(tile);
   });
+}
+
+// ---------- 手牌拖动排序（Pointer Events 实现） ----------
+var dragState = null;   // { from, tile, startX, startY, moved, targetIndex }
+
+function beginTileDrag(tile, index, ev) {
+  dragState = { from: index, tile: tile, startX: ev.clientX, startY: ev.clientY, moved: false, targetIndex: index };
+  try { tile.setPointerCapture(ev.pointerId); } catch (err) {}
+
+  tile.addEventListener("pointermove", onTileDragMove);
+  tile.addEventListener("pointerup", onTileDragEnd);
+  tile.addEventListener("pointercancel", onTileDragEnd);
+  ev.preventDefault();
+}
+
+function onTileDragMove(ev) {
+  if (!dragState) return;
+  var dx = ev.clientX - dragState.startX;
+  var dy = ev.clientY - dragState.startY;
+
+  // 超过阈值才开始拖，避免和"点击选牌"冲突
+  if (!dragState.moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+  if (!dragState.moved) {
+    dragState.moved = true;
+    dragState.tile.classList.add("dragging");
+    dragState.tile.style.opacity = "0.45";
+    dragState.tile.style.zIndex = "10";
+    // 关键：被拖的牌会跟着指针走，会挡住 elementFromPoint 的命中判断，
+    // 设为 pointer-events:none 让命中落到下面的牌上
+    dragState.tile.style.pointerEvents = "none";
+  }
+
+  // 移动视觉跟随
+  dragState.tile.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.06)";
+
+  // 判断当前指针落在哪张牌上
+  var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+  while (hit && !(hit.dataset && hit.dataset.card)) hit = hit.parentElement;
+  var handTiles = Array.prototype.slice.call($("hand-bottom").children);
+  handTiles.forEach(function(t) {
+    if (t !== dragState.tile) { t.style.borderColor = ""; t.style.boxShadow = ""; }
+  });
+  if (hit && hit !== dragState.tile && hit.parentElement === $("hand-bottom")) {
+    hit.style.borderColor = "var(--gold)";
+    hit.style.boxShadow = "0 0 12px var(--gold)";
+    dragState.targetIndex = parseInt(hit.dataset.index, 10);
+  }
+  ev.preventDefault();
+}
+
+function onTileDragEnd(ev) {
+  if (!dragState) return;
+  var st = dragState;
+  dragState = null;
+
+  st.tile.removeEventListener("pointermove", onTileDragMove);
+  st.tile.removeEventListener("pointerup", onTileDragEnd);
+  st.tile.removeEventListener("pointercancel", onTileDragEnd);
+  try { st.tile.releasePointerCapture(ev.pointerId); } catch (err) {}
+
+  st.tile.style.transform = "";
+  st.tile.style.opacity = "";
+  st.tile.style.zIndex = "";
+  st.tile.style.pointerEvents = "";
+  st.tile.classList.remove("dragging");
+
+  if (st.moved && st.targetIndex !== st.from && st.targetIndex >= 0 &&
+      st.targetIndex < gameState.myHand.length) {
+    var moved = gameState.myHand.splice(st.from, 1)[0];
+    gameState.myHand.splice(st.targetIndex, 0, moved);
+    renderHand();
+  } else if (!st.moved) {
+    // 没移动 = 当作点击，交给 onclick 处理
+    renderHand();
+  }
 }
 
 function renderActionBar() {
