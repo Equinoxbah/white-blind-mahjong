@@ -838,6 +838,18 @@ var _msgDedupe = Object.create(null);
 var _msgDedupeCount = 0;
 
 function dedupeGameMsg(msg) {
+  // 只对「重复到达无副作用」的消息去重。
+  // turn-change / pass-action / draw 这类时序消息必须每条都处理：
+  // 同一座位可能连续两轮轮到（内容完全相同），若被 1.5s 窗口吞掉就会跳过摸牌。
+  var IDEMPOTENT = {
+    "start-game": 1, "dice-phase": 1, "dice-done": 1, "dice-roll": 1,
+    "player-joined": 1, "player-left": 1, "host-migration": 1,
+    "state-sync": 1, "rejoin-request": 1, "rejoin-response": 1,
+    "game-over": 1, "restart-game": 1, "chat": 1, "discard": 1,
+    "hu-propose": 1, "hu-vote": 1, "hu-cancel": 1
+  };
+  if (!IDEMPOTENT[msg.type]) return true;   // 时序消息一律放行
+
   var key;
   try {
     key = String(msg.fromId) + "|" + String(msg.type) + "|" + JSON.stringify(msg.data);
@@ -954,19 +966,30 @@ function startTurnRemote(seat) {
   gameState.selectedTile = null;
   gameState.lastDiscard = null;
   gameState.lastDiscardBy = -1;
-  updateTurnIndicator();
-  renderActionBar();
-  renderHand();
 
   var player = gameState.players[seat];
   if (player && isAI(player.id)) {
     // AI回合：只有房主端模拟
+    updateTurnIndicator();
+    renderActionBar();
+    renderHand();
     if (gameState.isCreator) {
       setTimeout(function() { simulateAI(seat); }, 600);
     }
-  } else if (seat === gameState.myIndex) {
-    setTimeout(function() { beginMyTurn(); }, 300);
+    return;
   }
+
+  if (seat === gameState.myIndex) {
+    // 自己的回合：立即置为可摸牌，不要用 setTimeout 延迟，
+    // 否则这 300ms 内的任何重渲染都会把按钮画成"等待摸牌..."，
+    // 玩家体感就是"摸牌被跳过了"。
+    gameState.canDraw = true;
+    gameState.turnPhase = "draw";
+  }
+
+  updateTurnIndicator();
+  renderActionBar();
+  renderHand();
 }
 
 function onRemoteTurnChange(data) {
@@ -3073,91 +3096,130 @@ function renderHand() {
     var tile = createTile(ch);
     tile.dataset.card = ch;
     tile.dataset.index = i;
+    tile.style.touchAction = "none";     // 阻止浏览器把触摸解释成滚动
     if (gameState.selectedTile === ch && gameState.canDiscard) tile.classList.add("selected");
-    tile.onclick = function() { selectTile(ch); };
 
-    // 拖动排序：用 Pointer Events，鼠标与触摸都支持
-    // （原 HTML5 draggable 在移动端浏览器完全不触发 onDragStart）
-    tile.addEventListener("pointerdown", function(e) {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      beginTileDrag(tile, i, e);
+    // 用 touch/mouse 双通道，事件绑到 document 上。
+    // 不用 Pointer Events：部分安卓浏览器（含优狐）在 touch-action:none 下
+    // 不会稳定派发 pointermove，导致"按下去没反应"。
+    tile.addEventListener("touchstart", function(e) {
+      beginTileDrag(tile, i, e.touches[0].clientX, e.touches[0].clientY, e);
+    }, { passive: false });
+
+    tile.addEventListener("mousedown", function(e) {
+      if (e.button !== 0) return;
+      beginTileDrag(tile, i, e.clientX, e.clientY, e);
     });
+
     area.appendChild(tile);
   });
 }
 
-// ---------- 手牌拖动排序（Pointer Events 实现） ----------
-var dragState = null;   // { from, tile, startX, startY, moved, targetIndex }
+// ---------- 手牌拖动排序（touch / mouse 双通道） ----------
+var dragState = null;
 
-function beginTileDrag(tile, index, ev) {
-  dragState = { from: index, tile: tile, startX: ev.clientX, startY: ev.clientY, moved: false, targetIndex: index };
-  try { tile.setPointerCapture(ev.pointerId); } catch (err) {}
+function beginTileDrag(tile, index, x, y, ev) {
+  // 上一次没清理干净就先收尾
+  if (dragState) endTileDrag(false);
 
-  tile.addEventListener("pointermove", onTileDragMove);
-  tile.addEventListener("pointerup", onTileDragEnd);
-  tile.addEventListener("pointercancel", onTileDragEnd);
-  ev.preventDefault();
+  dragState = {
+    from: index, tile: tile,
+    startX: x, startY: y,
+    moved: false, targetIndex: index,
+    startTime: Date.now()
+  };
+
+  document.addEventListener("touchmove", onTileDragTouchMove, { passive: false });
+  document.addEventListener("touchend", onTileDragTouchEnd);
+  document.addEventListener("touchcancel", onTileDragTouchEnd);
+  document.addEventListener("mousemove", onTileDragMouseMove);
+  document.addEventListener("mouseup", onTileDragMouseUp);
+
+  if (ev && ev.cancelable) ev.preventDefault();
 }
 
-function onTileDragMove(ev) {
+function dragUpdate(x, y) {
   if (!dragState) return;
-  var dx = ev.clientX - dragState.startX;
-  var dy = ev.clientY - dragState.startY;
+  var dx = x - dragState.startX;
+  var dy = y - dragState.startY;
 
   // 超过阈值才开始拖，避免和"点击选牌"冲突
-  if (!dragState.moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+  if (!dragState.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+
   if (!dragState.moved) {
     dragState.moved = true;
     dragState.tile.classList.add("dragging");
     dragState.tile.style.opacity = "0.45";
     dragState.tile.style.zIndex = "10";
-    // 关键：被拖的牌会跟着指针走，会挡住 elementFromPoint 的命中判断，
-    // 设为 pointer-events:none 让命中落到下面的牌上
-    dragState.tile.style.pointerEvents = "none";
+    dragState.tile.style.position = "relative";
   }
 
-  // 移动视觉跟随
+  // 视觉跟随
   dragState.tile.style.transform = "translate(" + dx + "px," + dy + "px) scale(1.06)";
 
-  // 判断当前指针落在哪张牌上
-  var hit = document.elementFromPoint(ev.clientX, ev.clientY);
+  // 命中判定：先把被拖的牌临时隐藏，否则它自己会挡住 elementFromPoint
+  var prevPE = dragState.tile.style.pointerEvents;
+  dragState.tile.style.pointerEvents = "none";
+  var hit = document.elementFromPoint(x, y);
+  dragState.tile.style.pointerEvents = prevPE;
+
   while (hit && !(hit.dataset && hit.dataset.card)) hit = hit.parentElement;
-  var handTiles = Array.prototype.slice.call($("hand-bottom").children);
-  handTiles.forEach(function(t) {
+
+  var hand = $("hand-bottom");
+  Array.prototype.slice.call(hand.children).forEach(function(t) {
     if (t !== dragState.tile) { t.style.borderColor = ""; t.style.boxShadow = ""; }
   });
-  if (hit && hit !== dragState.tile && hit.parentElement === $("hand-bottom")) {
+  if (hit && hit !== dragState.tile && hit.parentElement === hand) {
     hit.style.borderColor = "var(--gold)";
     hit.style.boxShadow = "0 0 12px var(--gold)";
     dragState.targetIndex = parseInt(hit.dataset.index, 10);
   }
-  ev.preventDefault();
 }
 
-function onTileDragEnd(ev) {
+function onTileDragTouchMove(ev) {
+  if (!dragState || !ev.touches || !ev.touches.length) return;
+  dragUpdate(ev.touches[0].clientX, ev.touches[0].clientY);
+  if (ev.cancelable) ev.preventDefault();
+}
+
+function onTileDragTouchEnd(ev) {
+  endTileDrag(true);
+}
+
+function onTileDragMouseMove(ev) {
+  dragUpdate(ev.clientX, ev.clientY);
+}
+
+function onTileDragMouseUp(ev) {
+  endTileDrag(true);
+}
+
+function endTileDrag(apply) {
   if (!dragState) return;
   var st = dragState;
   dragState = null;
 
-  st.tile.removeEventListener("pointermove", onTileDragMove);
-  st.tile.removeEventListener("pointerup", onTileDragEnd);
-  st.tile.removeEventListener("pointercancel", onTileDragEnd);
-  try { st.tile.releasePointerCapture(ev.pointerId); } catch (err) {}
+  document.removeEventListener("touchmove", onTileDragTouchMove);
+  document.removeEventListener("touchend", onTileDragTouchEnd);
+  document.removeEventListener("touchcancel", onTileDragTouchEnd);
+  document.removeEventListener("mousemove", onTileDragMouseMove);
+  document.removeEventListener("mouseup", onTileDragMouseUp);
 
   st.tile.style.transform = "";
   st.tile.style.opacity = "";
   st.tile.style.zIndex = "";
-  st.tile.style.pointerEvents = "";
+  st.tile.style.position = "";
   st.tile.classList.remove("dragging");
 
-  if (st.moved && st.targetIndex !== st.from && st.targetIndex >= 0 &&
-      st.targetIndex < gameState.myHand.length) {
+  if (apply && st.moved && st.targetIndex !== st.from &&
+      st.targetIndex >= 0 && st.targetIndex < gameState.myHand.length) {
     var moved = gameState.myHand.splice(st.from, 1)[0];
     gameState.myHand.splice(st.targetIndex, 0, moved);
     renderHand();
+    showToast("已调整手牌顺序", 1200);
   } else if (!st.moved) {
-    // 没移动 = 当作点击，交给 onclick 处理
-    renderHand();
+    // 没有位移 = 当作点击选牌
+    selectTile(st.tile.dataset.card);
   }
 }
 
