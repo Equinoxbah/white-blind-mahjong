@@ -729,9 +729,7 @@ function enablePseudoFullscreen() {
   document.documentElement.classList.add("pseudo-fs");
   var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   document.documentElement.style.setProperty("--fs-h", vh + "px");
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock("landscape").catch(function(){});
-  }
+  // 不调用 screen.orientation.lock：部分浏览器会因此切进"播放器全屏"，上滑出音量条
 }
 function disablePseudoFullscreen() {
   document.documentElement.classList.remove("pseudo-fs");
@@ -740,27 +738,28 @@ function disablePseudoFullscreen() {
 
 function requestFullscreenAndLandscape() {
   if (!isMobile()) return;
+  // 移动端统一走 CSS 伪全屏，不调用任何 Fullscreen API。
+  // 优狐(m.you.hou) 等套壳浏览器 UA 与 Chrome 完全一致，无法区分；
+  // 且它们把"元素全屏"当成视频播放器全屏（fullscreenElement 仍是我们的元素，
+  // 但手势被接管 → 上滑弹音量条）。既然无法可靠识别，就一律不用原生全屏。
+  enablePseudoFullscreen();
+}
 
-  // 第三方浏览器：只做伪全屏，避免被当成视频播放器接管手势
-  if (isThirdPartyBrowser()) {
-    enablePseudoFullscreen();
-    return;
-  }
-
-  var el = document.documentElement;
-  var p = null;
-  if (el.requestFullscreen) p = el.requestFullscreen();
-  else if (el.webkitRequestFullscreen) p = el.webkitRequestFullscreen();
-  if (p && p.catch) p.catch(function(){ enablePseudoFullscreen(); });
-
-  // 原生全屏拿不到（被浏览器拒绝/不支持）时兜底伪全屏
-  setTimeout(function() {
+// 运行时自救：只要出现原生全屏，一律立即退出并切回伪全屏。
+function watchFullscreenHijack() {
+  if (window.__fsHijackBound) return;
+  window.__fsHijackBound = true;
+  var handler = function() {
     var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
-    if (!fsEl) enablePseudoFullscreen();
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock("landscape").catch(function(){});
-    }
-  }, 350);
+    if (!fsEl) return;
+    try {
+      if (document.exitFullscreen) document.exitFullscreen().catch(function(){});
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } catch (e) {}
+    enablePseudoFullscreen();
+  };
+  document.addEventListener("fullscreenchange", handler);
+  document.addEventListener("webkitfullscreenchange", handler);
 }
 function exitFullscreenIfAny() {
   disablePseudoFullscreen();
@@ -3404,6 +3403,9 @@ function init() {
   }
 
   // 剪贴板自动识别分享链接
+  // 兜底：监听全屏被别的元素接管（部分第三方浏览器把全屏识别成播放器）
+  watchFullscreenHijack();
+
   tryImportFromClipboard();
 
   renderLobby();
