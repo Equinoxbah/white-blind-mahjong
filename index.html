@@ -832,9 +832,39 @@ function getAIPlayers() {
 // 消息处理
 // ============================================================
 
+// 消息去重：P2P 与中继双发时，同一条消息可能到达两次。
+// 用 fromId+type+data 的指纹做 1.5 秒窗口去重；超时自动清理，避免内存增长。
+var _msgDedupe = Object.create(null);
+var _msgDedupeCount = 0;
+
+function dedupeGameMsg(msg) {
+  var key;
+  try {
+    key = String(msg.fromId) + "|" + String(msg.type) + "|" + JSON.stringify(msg.data);
+  } catch (e) {
+    return true;   // 无法序列化就放行，宁可重复也不要吞消息
+  }
+  var now = Date.now();
+  var prev = _msgDedupe[key];
+  if (prev && (now - prev) < 1500) return false;   // 1.5s 内重复 → 丢弃
+
+  _msgDedupe[key] = now;
+  _msgDedupeCount++;
+
+  // 每 200 条清理一次过期项
+  if (_msgDedupeCount > 200) {
+    _msgDedupeCount = 0;
+    Object.keys(_msgDedupe).forEach(function(k) {
+      if (now - _msgDedupe[k] > 1500) delete _msgDedupe[k];
+    });
+  }
+  return true;
+}
+
 function handleGameMsg(msg) {
   if (!msg || !msg.type) return;
   if (msg.fromId === gameState.me.id) return;
+  if (!dedupeGameMsg(msg)) return;
 
   switch (msg.type) {
     case "player-joined": onRemotePlayerJoined(msg.data); break;
@@ -1232,7 +1262,10 @@ function broadcastGameMsg(type, data) {
       sent++;
     }
   });
-  if (sent === 0 && isOnlineMode()) {
+  // 注意：不能写成 `if (sent === 0 && isOnlineMode())`。
+  // 只要有 1 个 P2P 通道通了就不再走中继，其他人会收不到消息（出牌/胡牌丢失 → 卡住）。
+  // 因此 P2P 与中继（Agora / WebSocket）同时发送，由接收端按内容指纹去重。
+  if (isOnlineMode()) {
     sendSignalToServer({
       type: "broadcast",
       roomId: gameState.roomId,
