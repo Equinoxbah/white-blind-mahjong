@@ -210,3 +210,41 @@ white-blind-mahjong/
 - **代码部分**：MIT License
 - **游戏名称、玩法规则与牌面文字**：版权归原创团队所有，本项目不主张任何权利
 - **本项目不构成对原作的替代**，请支持正版
+
+
+---
+
+## 🌐 联机部署说明（声网 RTM）
+
+联机默认走**声网 Agora RTM 公共中继**，不需要自己搭信令服务器，但需要签发一张短期通行证（token）。前端**不含任何密钥**，AppCertificate 只存在服务端。
+
+### 方式一：Cloudflare Pages Function（推荐）
+
+项目已内置 `functions/api/token.js`，部署到 Cloudflare Pages 后即可通过同域名 `/api/token` 获取通行证。
+
+在 Pages 项目的 **Settings → Environment variables** 添加：
+
+| 变量名 | 说明 |
+| --- | --- |
+| `AGORA_APP_ID` | 声网 App ID |
+| `AGORA_APP_CERT` | 声网 AppCertificate（**请设为 Secret 类型**） |
+| `TOKEN_TTL_SEC` | 通行证有效期秒数，如 `10800`（3 小时） |
+| `RATE_PER_MIN` | 单 IP 每分钟限流，默认 `30` |
+
+> 接口放在 Pages 自带的 `functions/` 下（与页面同域名），可避开 `*.workers.dev` 在国内被 DNS 污染的问题。
+
+### 方式二：独立 Cloudflare Worker
+
+`worker/worker.js` 是等价的 Worker 版本，适合单独部署。同样需要配置 `AGORA_APP_ID` / `AGORA_APP_CERT` 环境变量。
+
+部署后若想启用 Worker 作为回退地址，在浏览器控制台执行一次：
+
+```js
+localStorage.setItem("mahjong_token_fallback", "https://你的worker地址/api/token")
+```
+
+留空则只使用同域名 `/api/token`。
+
+### 方式三：自建信令服务器
+
+仓库自带 `signaling-server.js`（Node.js）与 `signaling-server.py`（Python），在大厅的「信令服务器地址」填入自己的 WebSocket 地址即可，不需要声网 token。

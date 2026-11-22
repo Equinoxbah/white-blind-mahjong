@@ -21,17 +21,38 @@
   --shadow:0 4px 12px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;
+/* body 不能用 min-height:100vh：手机上 100vh 含地址栏高度，会把 #app
+   顶出可视区，底部（自己的手牌）被 overflow:hidden 裁掉看不见。
+   高度统一交给 #app 的 100dvh。 */
+body{font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden;
   /* 关掉下拉刷新和滚动链，避免第三方浏览器把手势解释成音量/亮度调节 */
   overscroll-behavior:none;overscroll-behavior-y:none;touch-action:manipulation}
-html{overscroll-behavior:none;overscroll-behavior-y:none}
+html{height:100%;overscroll-behavior:none;overscroll-behavior-y:none}
 /* CSS 伪全屏：第三方浏览器不走原生 Fullscreen API */
 html.pseudo-fs,html.pseudo-fs body{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:var(--fs-h,100dvh);overflow:hidden}
 html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
-#app{display:flex;flex-direction:column;height:100vh;width:100vw}
+/* 兜底：整页禁止纵向滚动/回弹，避免任何浏览器把上滑解释成音量/亮度手势 */
+html,body,#app{overscroll-behavior:none;-webkit-overflow-scrolling:auto}
+#app{overflow:hidden}
+/* 移动端：高度优先用 JS 实测的 --vh（最可靠），
+   依次回退 100dvh -> 100vh。避免地址栏导致底部手牌被顶出屏幕。 */
+#app{display:flex;flex-direction:column;height:100vh;width:100vw;height:100dvh;height:var(--vh,100dvh)}
 .screen{display:none;flex-direction:column;height:100%;width:100%}
 .screen.active{display:flex}
+
+/* 大厅内容较长时允许滚动（对局界面保持锁定不滚动） */
+#lobby-screen{overflow-y:auto;overflow-x:hidden;padding:16px 0}
+#lobby-screen.active{display:flex}
+#game-screen{overflow:hidden}
+#game-screen.active{display:flex}
+
 .lobby-card{background:var(--panel);border:1px solid var(--tile-border);border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:var(--shadow);margin:auto}
+/* 内容超出视口时，用 padding 代替 margin:auto，避免顶部被裁 */
+#lobby-screen{scrollbar-width:thin}
+#lobby-screen::-webkit-scrollbar{width:8px}
+#lobby-screen::-webkit-scrollbar-thumb{background:var(--tile-border);border-radius:4px}
+#lobby-screen::-webkit-scrollbar-track{background:transparent}
+#lobby-screen .lobby-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}
 .lobby-title{text-align:center;margin-bottom:24px}
 .lobby-title h1{font-size:28px;color:var(--gold)}
 .lobby-title p{color:var(--muted);font-size:14px}
@@ -39,6 +60,53 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 .form-group label{display:block;margin-bottom:6px;font-size:14px;color:var(--muted)}
 .form-group input{padding:12px 16px;border-radius:8px;border:1px solid var(--tile-border);background:var(--bg);color:var(--text);font-size:16px;outline:none;width:100%}
 .form-group input:focus{border-color:var(--accent)}
+.form-group select{padding:12px 16px;border-radius:8px;border:1px solid var(--tile-border);background:var(--bg);color:var(--text);font-size:15px;outline:none;width:100%;cursor:pointer}
+.form-group select:focus{border-color:var(--accent)}
+/* 操作按钮组：竖屏纵向排列（横屏媒体查询里覆盖为两列网格） */
+.lobby-actions{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.lobby-actions .btn{width:100%}
+
+/* 扩充包勾选网格 */
+.pack-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.pack-item{position:relative;display:flex;align-items:center;gap:6px;padding:10px 8px;border:1px solid var(--tile-border);border-radius:8px;background:var(--bg);cursor:pointer;font-size:13px;transition:all .15s;user-select:none}
+.pack-item:hover{border-color:var(--gold);background:rgba(255,215,0,.06)}
+.pack-item.checked{border-color:var(--gold);background:rgba(255,215,0,.12);color:var(--gold)}
+.pack-item input[type=checkbox]{accent-color:var(--accent);cursor:pointer;width:15px;height:15px;flex-shrink:0}
+.pack-item .pack-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 扩充包明细：点选后展开在网格下方（移动端无悬停，改为点击） */
+.pack-detail{max-height:0;overflow:hidden;opacity:0;margin-top:0;padding:0 12px;border:1px solid transparent;border-radius:8px;background:var(--bg);transition:max-height .22s ease,opacity .18s ease,margin-top .22s ease,padding .22s ease}
+.pack-detail.show{max-height:180px;opacity:1;margin-top:8px;padding:10px 12px;border-color:var(--gold)}
+.pack-detail .detail-title{color:var(--gold);font-weight:700;margin-bottom:6px;font-size:13px}
+.pack-detail .detail-chars{display:flex;gap:4px;flex-wrap:wrap}
+.pack-detail .detail-char{width:26px;height:34px;display:flex;align-items:center;justify-content:center;background:var(--tile-bg);border:1px solid var(--tile-border);border-radius:4px;font-size:16px;font-weight:700}
+.pack-item.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+
+/* 掷骰界面 */
+.dice-row{display:flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid var(--tile-border);border-radius:8px;margin-bottom:8px;background:var(--bg);transition:all .25s}
+.dice-row.is-dealer{border-color:var(--gold);background:rgba(255,215,0,.12);box-shadow:0 0 12px rgba(255,215,0,.25)}
+.dice-name{font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px}
+.dice-face{font-size:30px;line-height:1;width:38px;text-align:center;margin-right:8px}
+.dice-val{font-size:17px;font-weight:700;color:var(--gold);width:24px;text-align:right}
+.dice-status{font-size:12px;color:var(--muted);min-width:48px;text-align:right}
+/* 牌桌内嵌骰子：自己的在中央区，他人的挂在名字旁 */
+.inline-dice{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 10px;background:rgba(0,0,0,.35);border:1px solid var(--tile-border);border-radius:10px}
+.inline-dice-face{font-size:22px;line-height:1}
+.inline-dice-val{font-size:14px;font-weight:700;color:var(--gold);min-width:14px;text-align:center}
+.inline-dice-opp{margin-left:6px;vertical-align:middle;padding:1px 6px}
+.inline-dice-opp .inline-dice-face{font-size:15px}
+.inline-dice-opp .inline-dice-val{font-size:11px}
+
+/* 横屏手机：掷骰弹窗整体紧凑，避免需要滚动 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .modal{max-width:520px;max-height:92vh;padding:14px 18px}
+  .modal h3{font-size:17px;margin-bottom:8px}
+  .dice-row{padding:6px 10px;margin-bottom:5px;border-radius:6px}
+  .dice-name{font-size:12px;margin-right:6px}
+  .dice-face{font-size:20px;width:26px;margin-right:6px}
+  .dice-val{font-size:13px;width:18px}
+  .dice-status{font-size:11px;min-width:42px}
+  #dice-rows{max-height:none}
+}
 .btn{padding:14px 24px;border-radius:8px;border:none;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-primary{background:var(--accent);color:#fff}
@@ -49,9 +117,17 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 .btn-gold:hover:not(:disabled){background:#ffe066}
 .warning-box{background:rgba(233,69,96,.15);border:1px solid var(--accent);border-radius:8px;padding:12px;margin-top:16px;font-size:13px;color:#ffaaaa;line-height:1.6}
 .warning-box strong{color:#ffd7a0}
+.warn-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.warn-arrow{font-size:12px;color:#ffd7a0;transition:transform .2s}
+.warning-box.collapsed .warn-arrow{transform:rotate(-90deg)}
+.warning-box.collapsed .warn-body{display:none}
+.warn-body{margin-top:6px}
 .room-desc{background:rgba(255,215,0,.1);border:1px solid var(--gold);border-radius:8px;padding:12px;margin-top:16px;font-size:13px;color:#ffd7a0;line-height:1.6}
 .player-list{margin-top:16px}
-.player-item{display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg);border-radius:8px;margin-bottom:8px}
+/* 玩家列表：一行 2 个，每格与 .lobby-actions 按钮半宽对齐 */
+.player-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.player-item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg);border-radius:6px;margin-bottom:0;font-size:12px;min-width:0}
+.player-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .player-dot{width:10px;height:10px;border-radius:50%}
 .player-dot.ready{background:var(--my-turn);box-shadow:0 0 8px var(--my-turn)}
 .player-dot.notready{background:var(--muted)}
@@ -63,10 +139,15 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 .player-area.top{top:16px;left:50%;transform:translateX(-50%);width:90%;max-width:1000px;text-align:center}
 .player-area.left{left:16px;top:50%;transform:translateY(-50%);height:60%}
 .player-area.right{right:16px;top:50%;transform:translateY(-50%);height:60%}
+.player-area.topleft{left:20%;top:16px;width:26%;max-width:320px;text-align:center}
+.player-area.topright{right:20%;top:16px;width:26%;max-width:320px;text-align:center}
 .player-header{display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:6px}
 .player-name{font-size:14px;color:var(--muted)}
 .player-name.me{color:var(--gold)}
 .player-name.active{color:var(--my-turn);text-shadow:0 0 8px var(--my-turn)}
+/* 庄家标记：开局后庄家名字常驻金色，右侧追加金色（庄家） */
+.player-name.is-dealer{color:var(--gold)!important;text-shadow:0 0 8px rgba(255,215,0,0.6)}
+.dealer-tag{color:var(--gold);font-weight:700}
 .player-status{font-size:12px;color:var(--muted)}
 .tile{background:var(--tile-bg);border:2px solid var(--tile-border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1;user-select:none;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .tile:hover:not(.discarded):not(.melded){transform:translateY(-4px);box-shadow:0 6px 16px rgba(0,0,0,.4);border-color:var(--accent)}
@@ -98,7 +179,7 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 .action-btn.secondary{background:#5a5a7a;color:var(--text)}
 .action-btn.gold{background:var(--gold);color:#1a1a2e}
 .action-btn.active{background:var(--my-turn);color:#1a1a2e;box-shadow:0 0 12px var(--my-turn)}
-.chat-panel{position:absolute;right:16px;top:16px;width:280px;height:400px;background:var(--panel);border:1px solid var(--tile-border);border-radius:12px;display:none;flex-direction:column;z-index:5}
+.chat-panel{position:absolute;right:16px;top:16px;width:280px;height:400px;max-height:80vh;background:var(--panel);border:1px solid var(--tile-border);border-radius:12px;display:none;flex-direction:column;z-index:70}
 .chat-header{padding:12px 16px;border-bottom:1px solid var(--tile-border);display:flex;justify-content:space-between;align-items:center}
 .chat-title{font-size:14px;color:var(--muted)}
 .chat-toggle{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;line-height:1}
@@ -143,23 +224,39 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 @media(max-width:768px){
   .hand-area .tile{width:40px;height:54px;font-size:18px}
   .discard-area .tile{width:26px;height:34px;font-size:12px}
-  .chat-panel{width:100%;right:0;left:0;height:300px}
+  .chat-panel{width:240px;right:8px;left:auto;top:48px;height:200px;max-height:44vh;font-size:13px}
   .lobby-card{padding:20px}
 }
 
-  /* 手机竖屏大厅适配 */
+/* 横屏手机：聊天窗口缩小并贴右下，避免遮挡牌面和上方玩家信息 */
+/* 用「矮视口」判断手机横屏，比 max-width 更可靠（高 DPR 手机 CSS 宽度可达 1000+） */
+@media (orientation: landscape) and (max-height: 560px) {
+  .chat-panel{width:190px;right:6px;left:auto;top:auto;bottom:6px;height:132px;max-height:38vh;border-radius:8px}
+  .chat-header{padding:6px 10px}
+  .chat-title{font-size:12px}
+  .chat-toggle{font-size:15px;padding:2px}
+  .chat-messages{padding:6px;font-size:11px;gap:4px}
+  .chat-msg{padding:5px 8px;font-size:11px}
+  .chat-msg .sender{font-size:10px}
+  .chat-input-area{padding:6px;gap:4px}
+  .chat-input-area input{font-size:11px;padding:5px 8px}
+  .send-btn{padding:5px 10px;font-size:11px}
+}
+
+  /* 手机竖屏大厅适配（内容可滚动，避免底部按钮被裁） */
   @media (max-width: 480px) and (orientation: portrait) {
     body { overflow: hidden; }
     #app { padding: 0; }
+    #lobby-screen { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .lobby-card {
       width: 100%;
       max-width: 100%;
-      min-height: 100vh;
+      min-height: auto;
       border-radius: 0;
       padding: 24px 20px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
     }
     .lobby-title h1 { font-size: 24px; }
     .lobby-title p { font-size: 12px; }
@@ -169,31 +266,39 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
   }
 
   /* 手机横屏游戏适配 */
-  @media (max-width: 900px) and (orientation: landscape) {
-    .game-table { min-height: 100vh; }
-    .player-area.bottom { bottom: 4px; width: 96%; }
-    .player-area.top { top: 4px; width: 96%; }
-    .player-area.left { left: 4px; height: 70%; }
-    .player-area.right { right: 4px; height: 70%; }
+  /* 横屏手机（矮视口）：牌面与布局紧凑化 */
+  @media (orientation: landscape) and (max-height: 560px) {
+    /* 注意：不能给 .game-table 设 min-height:100vh。
+       它本身是靠 #game-screen 的 flex:1 撑满的，再叠加 100vh 会把
+       bottom 定位的自己的手牌区顶出视口外（表现为"看不到自己的牌"）。 */
+    .game-table { min-height: 0; height: 100%; }
+    .player-area.bottom { bottom: 2px; width: 96%; }
+    .player-area.top { top: 2px; width: 96%; }
+    .player-area.left { left: 4px; height: 58%; }
+    .player-area.right { right: 4px; height: 58%; }
+    /* 底部自己的区域：把吃牌区/弃牌区高度压到最小，保证 13 张手牌能完整露出 */
+    .player-area.bottom .player-header { margin-bottom: 1px; height: 15px; }
+    .player-area.bottom .player-name { font-size: 11px; line-height: 15px; }
+    .player-area.bottom .player-status { font-size: 9px; }
+    .player-area.bottom .meld-area { min-height: 0; height: 28px; }
+    .player-area.bottom .hand-area { min-height: 0; height: 44px; }
+    .player-area.bottom .discard-area { min-height: 0; height: 24px; max-height: 24px; margin-top: 1px; }
     .hand-area .tile { width: 30px; height: 42px; font-size: 15px; }
-    .hand-area { gap: 2px; min-height: 42px; }
-    .discard-area .tile { width: 20px; height: 28px; font-size: 10px; }
-    .discard-area { min-height: 28px; max-height: 70px; }
-    .meld-area { min-height: 36px; }
-    .meld-group { padding: 2px 4px; }
-    .meld-group .tile { width: 20px; height: 28px; font-size: 10px; }
+    .hand-area { gap: 2px; }
+    .discard-area .tile { width: 18px; height: 24px; font-size: 9px; }
+    .meld-group { padding: 1px 3px; }
+    .meld-group .tile { width: 18px; height: 24px; font-size: 9px; }
     .player-name { font-size: 11px; }
     .player-status { font-size: 10px; }
-    .remaining-tiles { padding: 8px 14px; }
-    .remaining-tiles .count { font-size: 24px; }
-    .remaining-tiles .label { font-size: 10px; }
-    #turn-indicator { font-size: 12px; }
-    .center-area { top: 32%; }
-    .remaining-tiles { padding: 6px 12px; }
-    .remaining-tiles .count { font-size: 22px; }
+    /* 横屏矮视口：中央区上移并压缩，给底部手牌留出干净空间 */
+    .center-area { top: 18%; gap: 4px; transform: translate(-50%, 0); }
+    .remaining-tiles { padding: 3px 9px; }
+    .remaining-tiles .count { font-size: 18px; line-height: 1.1; }
     .remaining-tiles .label { font-size: 9px; }
-    .action-bar { bottom: 130px; gap: 6px; z-index: 20; }
-    .action-btn { padding: 8px 16px; font-size: 13px; min-width: 56px; }
+    #turn-indicator { font-size: 12px; line-height: 1.2; }
+    /* 操作栏放到中央区正下方，不压手牌 */
+    .action-bar { bottom: auto; top: 56%; transform: translateX(-50%); gap: 6px; z-index: 20; }
+    .action-btn { padding: 5px 12px; font-size: 12px; min-width: 48px; }
     .chat-fab, .rules-fab { top: 4px; padding: 4px 10px; font-size: 11px; }
     .chat-fab { right: 72px; }
     .rules-fab { right: 4px; }
@@ -202,6 +307,77 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
     .modal { max-width: 90%; padding: 16px; max-height: 90vh; }
     .modal h3 { font-size: 18px; }
   }
+
+  /* 横屏大厅：左右两栏一屏放下，不上下滚动。
+     .lobby-cols 由 HTML 提供：左栏=身份/房间，右栏=设置+按钮。
+     隐藏说明折叠框（竖屏才展开看），玩家列表压到底部一行。 */
+  @media (orientation: landscape) and (max-height: 560px) {
+    #lobby-screen { overflow: hidden; padding: 6px 10px; }
+    .lobby-card {
+      max-width: 1080px; width: 96%;
+      margin: auto; padding: 10px 20px 8px;
+      max-height: calc(var(--vh, 100dvh) - 10px);
+      display: flex; flex-direction: column;
+    }
+    .lobby-cols { display: flex !important; gap: 22px; align-items: flex-start; flex: 1; min-height: 0; }
+    .lobby-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .lobby-title {
+      margin-bottom: 4px;
+      display: flex; align-items: baseline; justify-content: center; gap: 12px;
+    }
+    .lobby-title h1 { font-size: 20px; line-height: 1.2; }
+    .lobby-title p { font-size: 11px; }
+    .form-group { margin-bottom: 6px; }
+    .form-group label { font-size: 11px; margin-bottom: 2px; }
+    .form-group input, .form-group select { padding: 6px 10px; font-size: 13px; border-radius: 6px; }
+    .pack-grid { gap: 4px; }
+    .pack-grid .pack-item { padding: 5px 6px; font-size: 11px; }
+    .pack-detail { font-size: 10px; margin-top: 2px; max-height: 40px; overflow: auto; }
+    #deck-mode-hint, #hu-mode-hint, #player-count-hint { font-size: 10px; margin-top: 1px; }
+    /* 操作按钮：右栏底部两列网格，5 个按钮最多占两行 */
+    .lobby-actions {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .lobby-actions .btn { margin-top: 0 !important; padding: 8px 10px; font-size: 13px; border-radius: 6px; width: 100%; }
+    .lobby-actions .btn-gold { grid-column: 1 / 3; }
+    /* 联机说明：横屏时固定为右下角胶囊按钮，点开向上展开。
+       !important：必须压住后面的竖屏基础规则 #lobby-screen > .warning-box */
+    #lobby-screen .warning-box {
+      position: fixed !important;
+      top: auto !important; bottom: 10px !important; left: auto !important; right: 10px !important;
+      margin: 0 !important; padding: 6px 14px;
+      font-size: 12px;
+      width: auto !important; max-width: 46vw !important;
+      border-radius: 999px;
+      background: rgba(233,69,96,.25);
+      backdrop-filter: blur(4px);
+      z-index: 500;
+    }
+    .warning-box .warn-toggle { padding: 0; }
+    .warning-box .warn-arrow { margin-left: 6px; }
+    /* 展开：宽度对齐右栏（50% 减去页边距），内部滚动，永不超出视口 */
+    #lobby-screen .warning-box:not(.collapsed) {
+      width: calc(50% - 20px) !important;
+      max-width: none !important;
+      max-height: calc(100% - 20px);
+      overflow: auto;
+      border-radius: 14px;
+    }
+    .warning-box:not(.collapsed) .warn-body { display: block; }
+    .room-desc { font-size: 10px; margin-top: 4px; }
+    /* 玩家列表：右栏底部、一行 2 个（格宽=按钮半宽），创建房间后显示 */
+    .player-list { margin-top: 6px; }
+    .player-list:empty { display: none; }
+    .player-item { padding: 4px 8px; font-size: 11px; }
+  }
+
+  /* 联机说明脱离卡片后的竖屏基础定位：跟大厅卡片同宽、居中。
+     注意：横屏媒体块里用同选择器覆盖为 fixed 右下角，
+     因为那条规则插在样式表更早位置，必须靠 !important 才能赢过这里的 margin/width。 */
+  #lobby-screen > .warning-box { width: calc(100% - 24px); max-width: 480px; margin: 12px auto 16px; }
 
   /* 旋转提示遮罩 */
   .rotate-overlay {
@@ -251,36 +427,74 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
         <h1>白色失明文字麻将</h1>
         <p>汉字组词造句 · 人机混战 · WebRTC联机</p>
       </div>
-      <div class="form-group">
-        <label>昵称</label>
-        <input type="text" id="nickname" placeholder="请输入昵称如 小明" maxlength="12">
+      <div class="lobby-cols">
+        <div class="lobby-col">
+          <div class="form-group">
+            <label>判定机制（房主开局时生效）</label>
+            <select id="hu-mode-select">
+              <option value="easy">入门 · 玩家本人认可即算胡牌</option>
+              <option value="normal" selected>进阶 · 50% 以上玩家认可即算胡牌</option>
+              <option value="strict">严格 · 所有玩家认可才能胡牌</option>
+            </select>
+            <div id="hu-mode-hint" style="font-size:12px;color:var(--muted);margin-top:4px">50% 以上玩家认可即算胡牌</div>
+          </div>
+          <div class="form-group">
+            <label>对局人数（房主开局时生效）</label>
+            <select id="player-count-select">
+              <option value="2">2 人</option>
+              <option value="3">3 人</option>
+              <option value="4" selected>4 人（标准）</option>
+              <option value="5">5 人</option>
+              <option value="6">6 人</option>
+            </select>
+            <div id="player-count-hint" style="font-size:12px;color:var(--muted);margin-top:4px">按 4 人局进行，不足的座位由 AI 补齐</div>
+          </div>
+          <div class="form-group">
+            <label>昵称</label>
+            <input type="text" id="nickname" placeholder="请输入昵称如 小明" maxlength="12">
+          </div>
+          <div class="form-group">
+            <label>信令服务器地址（房主用 ngrok 搭建后填入）</label>
+            <input type="text" id="signaling-url" placeholder="留空则尝试内置公共服务器">
+          </div>
+          <div class="form-group">
+            <label>房间号</label>
+            <input type="text" id="room-id-input" placeholder="输入房间号加入，或创建房间后自动获得">
+          </div>
+        </div>
+        <div class="lobby-col">
+          <div class="form-group">
+            <label>扩充包（基础 144 张默认启用，可勾选要加入的主题包）</label>
+            <div class="pack-grid" id="pack-grid">
+              <!-- 6 个主题包由 JS 渲染，一行 3 个 -->
+            </div>
+            <div class="pack-detail" id="pack-detail"></div>
+            <div id="deck-mode-hint" style="font-size:12px;color:var(--muted);margin-top:6px">当前牌库：192 张（基础 144 + 扩充 48）</div>
+          </div>
+          <div class="lobby-actions">
+            <button class="btn btn-primary" id="create-room-btn">创建房间</button>
+            <button class="btn btn-secondary" id="join-room-btn">加入房间</button>
+            <button class="btn btn-gold" id="start-game-btn" style="display:none">开始游戏</button>
+            <button class="btn btn-secondary" id="share-link-btn" style="display:none">分享链接</button>
+            <button class="btn btn-secondary" id="rules-btn-lobby">玩法规则</button>
+          </div>
+          <!-- 玩家列表放右栏底部：创建房间后在这里显示在线成员 -->
+          <div class="player-list" id="player-list"></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label>信令服务器地址（房主用 ngrok 搭建后填入）</label>
-        <input type="text" id="signaling-url" placeholder="留空则尝试内置公共服务器">
+    </div>
+    <!-- 联机说明：横屏时固定为右上角胶囊按钮，点开以浮层显示 -->
+    <div class="warning-box collapsed" id="warning-box">
+      <div class="warn-toggle" id="warn-toggle" onclick="toggleWarningBox()">
+        <strong>联机说明</strong><span class="warn-arrow" id="warn-arrow">▾</span>
       </div>
-      <div class="form-group">
-        <label>房间号</label>
-        <input type="text" id="room-id-input" placeholder="输入房间号加入，或创建房间后自动获得">
-      </div>
-      <button class="btn btn-primary" id="create-room-btn">创建房间</button>
-      <button class="btn btn-secondary" id="join-room-btn" style="margin-top:12px">加入房间</button>
-      <button class="btn btn-gold" id="start-game-btn" style="margin-top:12px;display:none">开始游戏 (0/4)</button>
-      <button class="btn btn-secondary" id="share-link-btn" style="margin-top:12px;display:none">分享链接</button>
-      <button class="btn btn-secondary" id="rules-btn-lobby" style="margin-top:12px">玩法规则</button>
-      <div class="warning-box" id="warning-box">
-        <strong>联机说明</strong><br>
-        ・ 不足4人自动补AI，支持人机混战<br>
+      <div class="warn-body" id="warn-body">
+        ・ 支持 2-6 人，不足2人自动补AI<br>
         ・ AI纯随机出牌，胡牌需14张全组成词句<br>
-        ・ 真人胡牌需在场真人全同意，AI不参与投票<br>
+        ・ 真人胡牌按所选判定机制裁决，AI 不参与投票<br>
         ・ 掉线后重进房间可恢复对局<br>
         ・ 房主退出自动迁移房主给在线真人
       </div>
-      <div class="room-desc" id="room-desc" style="display:none">
-        <strong>房间说明</strong><br>
-        复制房间号分享给好友，好友输入后加入即可。
-      </div>
-      <div class="player-list" id="player-list"></div>
     </div>
   </div>
 
@@ -300,6 +514,14 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
         <div class="meld-area" id="meld-left"></div>
         <div class="discard-area" id="discard-left"></div>
       </div>
+      <div class="player-area topleft" id="player-topleft">
+        <div class="player-header">
+          <span class="player-name" id="name-topleft"> — </span>
+          <span class="player-status" id="status-topleft"></span>
+        </div>
+        <div class="meld-area" id="meld-topleft"></div>
+        <div class="discard-area" id="discard-topleft"></div>
+      </div>
       <div class="player-area top" id="player-top">
         <div class="player-header">
           <span class="player-name" id="name-top"> — </span>
@@ -307,6 +529,14 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
         </div>
         <div class="meld-area" id="meld-top"></div>
         <div class="discard-area" id="discard-top"></div>
+      </div>
+      <div class="player-area topright" id="player-topright">
+        <div class="player-header">
+          <span class="player-name" id="name-topright"> — </span>
+          <span class="player-status" id="status-topright"></span>
+        </div>
+        <div class="meld-area" id="meld-topright"></div>
+        <div class="discard-area" id="discard-topright"></div>
       </div>
       <div class="player-area right" id="player-right">
         <div class="player-header">
@@ -381,23 +611,26 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
         <p style="margin-bottom:4px">3. 有人打出牌后，下家可选择吃/胡/过，其他玩家可选择胡。</p>
         <p style="margin-bottom:4px">4. 吃后跳过摸牌，直接进入出牌阶段。</p>
         <p style="margin-bottom:4px">5. 所有人选择「过」后，下家摸牌，继续下一回合。</p>
-        <p style="margin-bottom:12px">6. 牌库共192张（182个不同汉字，其中10个字各2张），摸空则流局。</p>
+        <p style="margin-bottom:12px">6. 牌库共 192 张（基础 144 + 扩充 48），每个字恰好 1 张，摸空则流局。</p>
 
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">三、吃牌</p>
-        <p style="margin-bottom:4px">・ 吃牌：只能吃上家打出的牌，用手牌中的字与打出的字组成词库中的词语（2-4字）。</p>
+        <p style="margin-bottom:4px">・ 吃牌：只能吃上家打出的牌，用手牌中的字与打出的字组成词库中的词语（2-4 个字的词）。</p>
         <p style="margin-bottom:4px">・ 吃后该牌组放入副露区（明牌），并跳过摸牌直接出牌。</p>
-        <p style="margin-bottom:12px">・ 无碰牌（牌库中同字最多2张，无法凑3张碰）；AI有30%概率吃。</p>
+        <p style="margin-bottom:12px">・ 无碰牌（实体牌每个字只有 1 张，无法凑 3 张碰）；AI 有 30% 概率吃。</p>
 
-        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">四、胡牌条件</p>
-        <p style="margin-bottom:4px">・ 真人胡牌：点击「胡」发起投票，不校验手牌，其他真人全票同意即胡。</p>
-        <p style="margin-bottom:4px">・ AI胡牌：系统自动校验14张能否全部拆分词库中的词语或短句，满足才申请。</p>
-        <p style="margin-bottom:4px">・ 可以是一个长句，也可以是多个小短句拼接。</p>
-        <p style="margin-bottom:12px">・ AI不参与投票，仅真人投票。</p>
+        <p style="color:var(--gold);font-weight:700;margin-bottom:8px">四、胡牌与判定机制</p>
+        <p style="margin-bottom:4px">・ 胡牌：手中 14 张组成你认可的文本即可胡，可以是一整句，也可以自由断句，允许谐音。</p>
+        <p style="margin-bottom:4px">・ 判定机制由房主在开局前选择，共三档：</p>
+        <p style="margin-bottom:2px;padding-left:16px">◦ <strong>入门</strong>：玩家本人认可即算胡牌</p>
+        <p style="margin-bottom:2px;padding-left:16px">◦ <strong>进阶</strong>：50% 以上玩家认可即算胡牌</p>
+        <p style="margin-bottom:4px;padding-left:16px">◦ <strong>严格</strong>：所有玩家认可才能胡牌</p>
+        <p style="margin-bottom:4px">・ AI 胡牌：系统自动校验 14 张能否拆分成词库中的词语，满足才申请。</p>
+        <p style="margin-bottom:12px">・ AI 不参与投票，仅真人投票。</p>
 
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">五、人机混战</p>
-        <p style="margin-bottom:4px">・ 不足4人时自动补AI，最少1人即可开始。</p>
-        <p style="margin-bottom:4px">・ AI纯随机出牌，摸到能胡的牌会自动申请胡牌。</p>
-        <p style="margin-bottom:12px">・ AI胡牌需真人投票同意，AI之间不互相投票。</p>
+        <p style="margin-bottom:4px">・ 不足 4 人时自动补 AI，最少 1 人即可开始。</p>
+        <p style="margin-bottom:4px">・ AI 纯随机出牌，摸到能胡的牌会自动申请胡牌。</p>
+        <p style="margin-bottom:12px">・ AI 胡牌同样按上述判定机制裁决，AI 之间不互相投票。</p>
 
         <p style="color:var(--gold);font-weight:700;margin-bottom:8px">六、联机说明</p>
         <p style="margin-bottom:4px">・ 使用 WebRTC P2P 直连，需信令服务器协助建立连接。</p>
@@ -447,149 +680,290 @@ html.pseudo-fs #app{height:var(--fs-h,100vh);height:var(--fs-h,100dvh)}
 "use strict";
 
 // ============================================================
-// 牌库 (36种字 × 4 = 144张)
+// 牌库：基础 144 张 + 扩充 48 张 = 192 张，每字恰好 1 张
+// 字表按实体牌面实拍核对，与实体完全一致
+// 可通过「牌库模式」选择只用基础牌还是含扩充牌
 // ============================================================
 
-var CARD_CHARS = [
-  // 上半部分
-  "做","气","醒","少","饿","坏","这","它","色","后","有","月",
-  "给","爱","哭","麻","活","笑","王","钱","失","中","东","手",
-  "但","想","里","恋","飞","杀","吃","神","明","傻","西","影",
-  "电","野","几","日","发","喝","睡","跑","点","一","把","只",
-  "更","酒","天","老","花","和","白","热","对","为","很","多",
-  "鬼","海","地","来","风","光","去","红","如","别","都","少",
-  "被","就","过","虽","梦","语","是","迷","个","在","极","待",
-  "比","菜","到","只","春","烟","笑","要","大","吗","啊","吧",
-  "看","心","无","多","喜","听","在","说","就","眼","可","呆",
-  // 下半部分
-  "爷","男","奶","姐","孩","女","友","哥",
-  "仙","佛","法","还","道","灵","行","魔",
-  "鸭","猪","龙","狗","养","鱼","喂","鸟",
-  "大","都","有","你","小","不","人","我","美","了","谁","他","丑","好","哪","她","乱","纯","痛","乐","又","之","疯","快","好","着","欢","将","儿","的","黑","冷","绝","生","死","空",
-  "夜","偷","恨","渣","暗","烦","难","伤",
-  "叫","太","打","抽","搞","草","象","怪",
-  "诗","雨","晓","星","舞","水","情","歌"
+// 基础牌 144 张（每字 1 张）
+var BASE_CHARS = [
+  "你","我","他","她","乐","疯","将","冷","空",
+  "们","人","谁","哪","痛","之","欢","黑","死",
+  "那","不","了","好","纯","快","着","的","生",
+  "大","小","美","丑","乱","又","子","儿","饱",
+  "月","手","影","只","多","少","得","吧","呆",
+  "有","东","西","把","很","都","极","啊","可",
+  "后","中","傻","一","为","别","在","吗","眼",
+  "色","失","明","点","对","如","个","火","没",
+  "瓜","麻","恋","日","老","来","敌","完","像",
+  "醒","哭","里","几","天","地","过","到","无",
+  "气","爱","想","野","酒","海","就","菜","心",
+  "做","给","但","电","夏","鬼","被","比","看",
+  "它","钱","神","跑","热","红","迷","要","说",
+  "这","王","吃","睡","白","去","是","家","狂",
+  "坏","笑","杀","喝","和","光","语","烟","听",
+  "饿","活","飞","发","花","风","梦","春","喜"
 ];
 
-// 胡牌词库：基于182字牌库生成的有意义词语和短句
+// 6 个扩充包（每包 8 字）
+var EXPAND_PACKS = [
+  { id: "yijing", name: "意境包", chars: ["诗","晓","舞","情","雨","星","水","歌"] },
+  { id: "xuanxue", name: "玄学包", chars: ["仙","道","法","行","佛","运","灵","魔"] },
+  { id: "renlei", name: "人类包", chars: ["爷","奶","姐","孩","友","男","女","哥"] },
+  { id: "heiAn", name: "黑暗包", chars: ["恨","暗","难","夜","偷","渣","伤","烦"] },
+  { id: "chouxiang", name: "抽象包", chars: ["太","抽","草","怪","打","搞","象","叫"] },
+  { id: "mengshou", name: "猛兽包", chars: ["鸭","龙","养","喂","猫","狗","鱼","鸟"] }
+];
+
+// 全部扩充字（按包顺序拼接）
+var EXPAND_CHARS = EXPAND_PACKS.reduce(function(acc, p) { return acc.concat(p.chars); }, []);
+
+// 当前实际使用的牌库（由「已启用扩充包」决定）
+var CARD_CHARS = BASE_CHARS.concat(EXPAND_CHARS);
+
+// 胡牌词库：676 条
+// 全部由牌库 192 字组成；因实体牌每字仅 1 张，含重复字的词已全部剔除
 var HU_WORDS = [
-  // 二字词
-  "爱情","爱心","爱好","爱美","想你","想看","想吃","想做","说话","说笑","说好",
-  "做饭","做菜","做好","吃饭","吃菜","吃喝","看书","看海","看花","看风",
-  "走路","走开","飞行","飞鸟","飞龙","发呆","发现","发明","白天","白色",
-  "明白","明天","明星","黑夜","黑暗","冷水","火热","天气","天空","老人",
-  "老虎","大海","大小","大家","大人","小心","小鸟","小鱼","小孩","很多",
-  "多少","美丽","美好","美女","快乐","快点","欢乐","欢喜","心痛","心情",
-  "无心","无可","可以","可是","可能","呆傻","傻瓜","神仙","精神","精灵",
-  "灵气","灵活","魔鬼","魔术","佛法","道士","行动","行走","行为","为了",
-  "对着","对手","过去","过来","虽然","梦想","梦里","语言","是的","个人",
-  "在家","极度","等待","比较","到达","春天","春风","烟雾","要求","大麻",
-  "吧了","看吧","看着","听到","听话","喜悦","喜酒","无限","可爱","爷爷",
-  "男人","男孩","奶奶","姐姐","孩子","女孩","女儿","友好","友情","哥哥",
-  "仙女","仙人","佛祖","佛教","法律","还在","还有","道路","道理","知道",
-  "灵感","灵魂","鸭子","猪肉","猪头","龙飞","养狗","养鱼","喂鱼","喂鸟",
-  "鸟儿","你好","你们","小时","不是","不要","不好","人家","人们","我的",
-  "我是","我要","我有","了解","谁的","他们","他的","丑女","好坏","好的",
-  "哪里","哪个","她们","她的","乱说","乱搞","纯白","痛苦","痛快","又来",
-  "又是","之前","之后","疯子","疯狂","着急","着火","欢迎","欢笑","将来",
-  "儿童","儿女","黑白","黑色","冷水","冷清","绝对","绝望","生活","生命",
-  "生死","天空","空气","空白","夜晚","偷袭","偷看","恨你","渣滓","暗淡",
-  "烦心","烦恼","难过","难道","伤心","伤害","叫声","太阳","打人","打架",
-  "抽风","抽烟","搞怪","搞笑","草地","花草","象棋","怪事","诗歌","诗人",
-  "雨水","雨天","晓得","星星","星光","跳舞","水果","水中","情感","情人",
-  "歌唱","歌曲","歌星","酒醒","醒目","少了","饿了","坏事","坏了","这里",
-  "这个","它的","色彩","后来","后天","有了","有钱","有时","月光","月亮",
-  "给我","给你","爱哭","哭了","麻烦","麻木","活动","活了","笑话","笑脸",
-  "王子","金钱","失去","失恋","中间","中心","东西","东方","手心","手指",
-  "但是","但愿","里面","恋爱","杀人","杀死","神奇","神明","傻了","西瓜",
-  "西方","影子","电影","电话","野外","野菜","几乎","几个","日子","日常",
-  "发展","发达","喝酒","喝醉","睡觉","睡眠","跑步","跑了","点头","点火",
-  "一个","一天","把握","把手","只是","只有","更好","更加","酒店","酒醉",
-  "天地","天上","老花","和平","和谐","热情","热门","对话","对立","为何",
-  "为难","很好","很想","多好","多么","鬼子","鬼怪","海水","海风","地方",
-  "地球","来往","来去","风景","风雨","光线","光明","去年","红色","红花",
-  "如何","如果","别人","别离","都是","都有","被子","被动","就是","就来",
-  "过年","虽说","梦里","语文","是非","个体","在于","极限","待人","比例",
-  "比如","到底","春花","春季","烟火","要是","大麻","大人","吗啊","看见",
-  "看到","心里","心中","无数","喜欢","听到","听见","说明","眼睛","眼光",
-  "呆子","爷们","男生","奶牛","姐妹","孩童","女生","女王","友爱","哥们",
-  "仙境","佛寺","法院","懂得","魔力","野鸭","龙虾","狗养","鱼虾","喂食",
-  "鸟语","你的","小学","人民","了结","谁知","他要","丑陋","好看","乱动",
-  "纯洁","疼痛","乐园","之间","疯子","欢喜","将军","的话","的确","黑夜",
-  "天气","夜景","恨心","渣子","暗无","难受","叫好","太太","搞鬼","象眼",
-  "怪物","晓星","舞曲","心情",
-  // 三字词
-  "我爱你","你好吗","他在家","她有猫","吃饭了","在看书","要不要","是不是",
-  "有钱了","好美啊","快走啊","吃饭吗","看书了","做好了","说好的","要走了",
-  "不是的","在家吗","有饭吗","你走吧","他走了","她在吗","我要走","你要看",
-  "他要吃","她要玩","大家好","我想你","你在吗","好多了","太美了","好的啊",
-  "吃饭吧","看书吧","走路吧","做饭吧","说话吧","爱你啊","想你啊","你好啊",
-  "他好啊","她好啊","大家啊","有钱啊","睡不着","跑得快","飞得高","看得远",
-  "听得清","说得好","做得对","想得美","爱得深","恨得牙","痛得很","快乐啊",
-  "痛苦啊","伤心啊","难过啊","害怕啊","喜欢啊","讨厌啊","想要啊","不要啊",
-  "可以啊","行啊","好啊","对啊","是啊","对啊","对啊","行吧","好吧",
-  "去吧","来吧","走吧","吃吧","喝吧","看吧","听吧","说吧","做吧","想吧",
-  "爱吧","恨吧","哭吧","笑吧","睡吧","跑吧","飞吧","跳吧","唱吧","舞吧",
-  "写吧","读吧","学吧","玩吧","打吧","抽吧","搞吧","养吧","喂吧","偷吧",
-  "恨吧","烦吧","伤吧","难吧","苦吧","累吧","饿吧","渴吧","冷吧","热吧",
-  "黑吧","白吧","大吧","小吧","多吧","少吧","好吗","行吗","对吗","是吗",
-  "可以吗","能够吗","需要吗","想要吗","喜欢吗","讨厌吗","害怕吗","伤心吗",
-  "快乐吗","痛苦吗","难过吗","高兴吗","生气吗","着急吗","担心吗","放心吗",
-  // 四字词
-  "我爱吃的饭","你在看书吗","他要走了吧","大家好啊","有钱人家","吃饭了吗",
-  "你要走了吗","我想你了啊","他在看书","她在吃饭","我要吃饭","你要看书",
-  "他要走路","好多钱啊","美好人家","你好啊","他在吗","她有猫","我要走了",
-  "你要吃了","他要玩了","她要走了","大家好啊","有钱了啊","吃饭了啊","看书了啊",
-  "做好了啊","天亮了啊","天黑了啊","花谢了啊","鸟飞了啊","狗跑了啊","鱼死了啊",
-  "心碎了啊","梦碎了啊","情断了啊","爱没了啊","恨消了啊","痛忘了啊","伤好了啊",
-  "太难了啊","太烦了啊","太累了啊","太饿了啊","太渴了啊","太冷了啊","太热了啊",
-  "太黑了啊","太白了啊","太大了啊","太小了啊","太多了啊","太少了啊","太好了啊",
-  "太坏了啊","太美了啊","太丑了啊","太傻了啊","太呆了啊","太疯了啊","太快了啊",
-  "太慢了啊","太老了啊","太小了啊","太新了啊","太旧了啊","太高了啊","太低了啊",
-  "太长了啊","太短了啊","太远了啊","太近了啊","太重了啊","太轻了啊","太硬了啊",
-  "太软了啊","太粗了啊","太细了啊","太宽了啊","太窄了啊","太深了啊","太浅了啊",
-  // 五字及以上短句
-  "我爱吃的饭菜","你在看书了吗","他要走了吧啊","有钱人家的饭","我想你了啊",
-  "他不会做饭的","我要吃饭了啊","你要看书吗啊","他要走路了啊","她要玩猫了啊",
-  "大家好啊你们好","吃饭了吗你好","我爱你你爱我吗","你在干什么呢啊","他在哪里啊",
-  "她还好吗啊","今天天气好啊","明天会更好啊","春天来了啊","花儿开了啊",
-  "鸟儿飞了啊","狗儿跑了啊","鱼儿游了啊","龙儿腾了啊","猪儿睡了啊",
-  "鸭子叫了啊","神仙来了啊","魔鬼走了啊","佛法无边啊","道理很简单啊",
-  "灵魂在飞翔啊","心情很复杂啊","心痛得很啊","梦想成真了啊","语言很苍白啊",
-  "是的没错啊","个人很渺小啊","在家靠父母啊","极度悲伤啊","等待很漫长啊",
-  "比较才知道啊","到达目的地啊","春天花会开啊","烟雾缭绕啊","要求不高啊",
-  "大麻不能碰啊","吗啊吧啦啊","看见你了啊","心里只有你啊","无数个夜晚啊",
-  "喜欢你没道理啊","听到你声音啊","说明白了啊","就是这样啊","眼睛在说话啊",
-  "可以这样啊","呆子也有爱啊","爷爷你好啊","男人要坚强啊","奶奶辛苦了啊",
-  "姐姐你真美啊","孩子快长大啊","女孩要自爱啊","友情万岁啊","哥哥保护你啊",
-  "仙女下凡了啊","佛祖保佑啊","法律是公正啊","还有谁没来啊","道路很漫长啊",
-  "知道了别说了啊","懂得珍惜啊","魔力无边啊","鸭子水中游啊","猪肉涨价了啊",
-  "猪头猪脑啊","龙飞凤舞啊","狗是人类朋友啊","养鱼很有趣啊","喂鸟要有耐心啊",
-  "鸟儿在歌唱啊","你好吗朋友啊","小时侯的梦啊","不要放弃啊","好人有好报啊",
-  "人民万岁啊","我是中国人啊","我要飞得更高啊","我有一个梦想啊","了解你了啊",
-  "谁是谁非啊","他们都来了啊","他说得对呀","丑女也有爱啊","好的没问题啊",
-  "哪里来的啊","哪个是你的啊","她们都好啊","她在想你啊","乱说一气啊",
-  "乱搞一通啊","纯白的雪啊","痛苦并快乐啊","痛快地哭啊","又来了一个啊",
-  "又是这样啊","之前说好了啊","之后再说吧啊","疯子才这样啊","疯狂的世界啊",
-  "快点走吧啊","快乐每一天啊","着什么急啊","欢迎光临啊","欢声笑语啊",
-  "将来会更好啊","儿童是未来啊","儿女情长啊","的的确确啊","黑白分明啊",
-  "黑色的夜啊","冷水浇头啊","冷清的街啊","绝对不可能啊","绝望的呐喊啊",
-  "生活要继续啊","生命很宝贵啊","生死由命啊","天空很蓝啊","空气很清新啊",
-  "空白的头脑啊","夜晚很安静啊","偷袭珍珠港啊","偷看你一眼啊","恨铁不成钢啊",
-  "渣滓洞烈士啊","暗淡的灯光啊","烦心的事啊","烦恼抛脑后啊","难过的时候啊",
-  "难道不行吗啊","伤心太平洋啊","伤害了别人啊","叫声很凄惨啊","太阳升起了啊",
-  "打人是犯法啊","打架不应该啊","抽风了吧你啊","搞什么鬼啊","搞笑一家人啊",
-  "草地绿油油啊","花草树木啊","象棋很有趣啊","怪事年年有啊","诗歌朗诵啊",
-  "诗人很浪漫啊","雨水淋湿了啊","雨天路滑啊","晓得不晓得啊","星星眨眼睛啊",
-  "星光很灿烂啊","跳舞的女孩啊","水果很新鲜啊","水中捞月啊","情感很丰富啊",
-  "情人节快乐啊","歌唱祖国啊","歌曲很动听啊","歌星很闪亮啊"
+  // ===== 二字词 637 条 =====,
+  "我想","我要","我是","我有","我的","我在","你们","他们","她们","我们",
+  "你看","你说","你笑","你哭","你睡","你吃","你喝","他好","她好","他坏",
+  "他傻","他疯","他笑","他哭","他说","他睡","他吃","她笑","她哭","她说",
+  "她睡","我好","我坏","我傻","我疯","我笑","我哭","我说","我睡","我吃",
+  "我喝","我乐","我恨","谁人","谁好","谁爱","谁想","好人","坏人","女人",
+  "男人","老人","老友","老子","老奶","老爷","男孩","女孩","孩子","儿女",
+  "儿子","女儿","爷们","哥们","姐们","女王","王子","美女","丑女","友人",
+  "爱情","爱人","爱心","恋爱","恋人","爱你","爱他","爱她","爱我","爱笑",
+  "爱哭","爱吃","爱喝","爱睡","爱钱","爱美","恨你","恨他","恨她","恨我",
+  "心痛","心情","心好","心坏","心冷","心热","心乱","心死","想笑","想哭",
+  "想吃","想喝","想睡","想去","想来","想你","想我","想他","想她","想要",
+  "想看","失恋","欢喜","欢乐","欢笑","快乐","痛快","难过","伤心","烦心",
+  "烦人","疯狂","疯子","傻子","迷人","迷恋","着迷","着魔","心烦","吃菜",
+  "吃鱼","吃鸭","吃喝","喝酒","喝水","看海","看花","看月","看星","看雨",
+  "看风","看天","看地","看人","看狗","看鸟","看鱼","听说","说笑","说明",
+  "说好","说爱","说恨","说梦","打人","打狗","打鱼","打鸭","打水","飞来",
+  "飞去","飞快","飞过","飞天","睡好","睡多","睡少","醒来","醒了","睡着",
+  "睡了","笑哭","笑了","哭了","来了","去了","好了","坏了","美了","丑了",
+  "杀死","生活","生死","活了","活好","养活","喂鱼","喂鸟","喂狗","喂鸭",
+  "喂猫","养鱼","养狗","养鸟","养鸭","养猫","养家","偷看","偷吃","偷喝",
+  "偷睡","做菜","做好","做多","做少","做人","天气","天空","天黑","天冷",
+  "天热","天好","大海","海水","海风","海鱼","海鸟","海天","大地","天地",
+  "地心","地道","月光","月儿","月夜","月色","月好","星光","星夜","星月",
+  "雨天","雨水","雨夜","雨点","雨大","雨小","风雨","风月","风光","风大",
+  "风好","风冷","风热","春风","春雨","春色","春水","春天","春梦","春晓",
+  "花草","花好","花心","红花","白花","花雨","花月","烟花","烟雨","如烟",
+  "电光","电影","人影","光影","花影","夜色","夜里","夜空","夜雨","夜风",
+  "月黑","水气","酒水","白天","白色","黑白","纯白","红白","黑色","红色",
+  "大红","小红","红心","红火","白水","黑水","黑心","红日","白日","明月",
+  "很大","很小","很多","很少","很好","很美","很丑","很坏","很快","很冷",
+  "很热","太难","太饿","太冷","太热","太黑","太白","太红","太美","太丑",
+  "太小","太大","太老","太少","太多","太好","太坏","太傻","太疯","不要",
+  "不行","不是","不去","不来","不吃","不喝","不看","不听","不说","不想",
+  "不爱","不好","不坏","不美","不傻","不死","不在","不对","别的","别人",
+  "别说","别哭","别笑","别来","无语","无心","无情","无爱","无法","无人",
+  "无光","无月","无星","无梦","一个","一天","一日","一月","一人","一只",
+  "一把","一点","一心","一生","几天","几日","几个","几人","几只","多日",
+  "多人","是的","就是","都是","但是","要是","可是","只是","为了","不过",
+  "对着","好吗","好啊","好吧","好的","是吧","是啊","可爱","可笑","有点",
+  "可乐","大鱼","小鱼","大狗","小狗","大鸟","小鸟","大猫","小猫","鱼水",
+  "鸟语","鸟叫","狗叫","大鸭","大龙","鸭叫","猫叫","手心","手气","眼神",
+  "眼色","眼红","眼看","眼中","眼里","东西","东风","白菜","菜心","菜花",
+  "酒菜","酒气","酒鬼","风水","气色","生气","和气","诗歌","诗人","情诗",
+  "情歌","歌星","歌手","舞王","舞女","晓星","诗情","梦想","梦中","梦里",
+  "好梦","美梦","梦醒","如梦","仙气","仙女","仙人","神仙","佛法","佛心",
+  "佛爷","佛道","魔女","魔王","魔法","魔道","魔鬼","鬼怪","鬼火","鬼影",
+  "神明","神气","神灵","灵气","失灵","灵光","心灵","运气","气运","发火",
+  "发呆","发疯","发笑","发红","发白","发黑","发热","发冷","将它","将你",
+  "将我","将他","将她","将来","将要","之好","之美","之后","之心","之情",
+  "之爱","之梦","之诗","之歌","那里","那个","那日","那月","那夜","那家",
+  "那人","那心","那梦","又好","又美","又坏","又傻","又疯","又来","又去",
+  "又笑","又哭","又大","又小","又冷","又热","饱了","饱好","吃饱","太饱",
+  "好饱","不饱","极了","极好","极美","极坏","极傻","极快","极乐","极痛",
+  "后来","后天","后手","后夜","后日","没有","没来","没去","没吃","没喝",
+  "没睡","没钱","没心","没梦","瓜大","瓜子","西瓜","麻了","麻花","麻子",
+  "敌人","敌好","无敌","大敌","敌对","完了","完美","完好","做完","像你",
+  "像我","像他","像她","好像","到家","到手","到心","到死","野花","野草",
+  "野狗","野猫","野鸭","野鸟","野鱼","给你","给他","给她","给钱","夏天",
+  "夏日","夏夜","被你","被他","被她","被爱","被恨","被笑","被偷","被杀",
+  "比你","比他","比美","比大","比小","比多","比少","对比","无比","它好",
+  "它有","它是","它的","它饿","它冷","它热","跑了","跑去","跑快","快跑",
+  "这里","这儿","这天","这日","这月","这夜","这人","这家","暗夜","暗好",
+  "暗黑","黑暗","渣男","人渣","渣子","抽风","抽水","抽空","抽烟","抽打",
+  "搞怪","搞笑","搞鬼","搞好","乱搞","大象","象好",
+  // ===== 三字词 35 条 =====,
+  "你好吗","你好啊","一个人","有一天","有一点","我来过","你来了","他来了","她来了","我来了",
+  "过去了","太美了","太快了","太黑了","太好了","太坏了","太傻了","想你了","想我了","我爱你",
+  "他爱我","我爱她","爱我吗","明白吗","做得对","不对啊","好了吗","好了吧","去哪了","你在哪",
+  "他在哪","她在哪","我是谁","你是谁","他是谁",
+  // ===== 四字词 4 条 =====,
+  "你我他她","我爱着你","我在想你","你在想我"
 ];
-
-// 去重
-HU_WORDS = HU_WORDS.filter(function(w, i) { return HU_WORDS.indexOf(w) === i; });
 
 function makeDeck() {
   return shuffle(CARD_CHARS.slice());
+}
+
+// 当前局人数（用于座位环形推进，支持 2-6 人）
+function playerCount() {
+  var n = gameState.players.length;
+  return n > 0 ? n : 4;
+}
+
+// 对局人数提示
+function updatePlayerCountHint() {
+  var hint = $("player-count-hint");
+  if (!hint) return;
+  var target = gameState.targetPlayerCount || 4;
+  var joined = (gameState.players || []).filter(function(p) { return !isAI(p.id); }).length;
+  var aiNeed = Math.max(0, target - joined);
+  hint.textContent = "目标 " + target + " 人（已加入 " + joined + " 人，开局自动补 " + aiNeed + " 个 AI）";
+}
+
+// 下一座位（顺时针）
+function nextSeatOf(seat) {
+  var n = playerCount();
+  return (seat + 1) % n;
+}
+
+// 上一座位（逆时针）
+function prevSeatOf(seat) {
+  var n = playerCount();
+  return (seat - 1 + n) % n;
+}
+
+// 已启用的扩充包 id 列表（默认全选）
+function getEnabledPacks() {
+  if (!gameState.enabledPacks) {
+    gameState.enabledPacks = EXPAND_PACKS.map(function(p) { return p.id; });
+  }
+  return gameState.enabledPacks;
+}
+
+// 按当前启用的包重建牌库
+function rebuildDeck() {
+  var enabled = getEnabledPacks();
+  var expandChars = [];
+  EXPAND_PACKS.forEach(function(p) {
+    if (enabled.indexOf(p.id) !== -1) expandChars = expandChars.concat(p.chars);
+  });
+  CARD_CHARS = BASE_CHARS.concat(expandChars);
+  // 牌库变了，首字索引需重建
+  _wordsByFirst = null;
+  // 更新提示
+  var hint = $("deck-mode-hint");
+  if (hint) {
+    var packCount = enabled.length;
+    hint.textContent = "当前牌库：" + CARD_CHARS.length + " 张（基础 144 + 扩充 " + expandChars.length +
+      "，已启用 " + packCount + "/6 个包）";
+  }
+  return CARD_CHARS.length;
+}
+
+// 当前展开明细的扩充包 id（null = 未选，面板收起）
+var activePackId = null;
+
+// 切换某个扩充包的启用状态
+function togglePack(packId, on) {
+  var enabled = getEnabledPacks().slice();
+  var idx = enabled.indexOf(packId);
+  if (on && idx === -1) enabled.push(packId);
+  if (!on && idx !== -1) enabled.splice(idx, 1);
+  gameState.enabledPacks = enabled;
+  rebuildDeck();
+  renderPackGrid();
+}
+
+// 渲染扩充包勾选网格（一行 3 个，共 2 行）
+function renderPackGrid() {
+  var grid = $("pack-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  var enabled = getEnabledPacks();
+
+  EXPAND_PACKS.forEach(function(p) {
+    var isOn = enabled.indexOf(p.id) !== -1;
+    var label = document.createElement("label");
+    label.className = "pack-item" + (isOn ? " checked" : "");
+    label.setAttribute("data-pack", p.id);
+    if (activePackId === p.id) label.classList.add("active");
+
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = isOn;
+    cb.onchange = function() { togglePack(p.id, this.checked); };
+    label.appendChild(cb);
+
+    var nameEl = document.createElement("span");
+    nameEl.className = "pack-name";
+    nameEl.textContent = p.name;
+    label.appendChild(nameEl);
+
+    // 点包名展开/收起该包 8 个字；点复选框只切换启用，不展开
+    nameEl.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      activePackId = (activePackId === p.id) ? null : p.id;
+      renderPackGrid();
+      renderPackDetail();
+    };
+    // 点空白处也展开（保持手机端点击区域够大）
+    label.onclick = function(e) {
+      if (e.target === cb) return;
+      if (e.target === nameEl) return;
+      e.preventDefault();
+      activePackId = (activePackId === p.id) ? null : p.id;
+      renderPackGrid();
+      renderPackDetail();
+    };
+
+    grid.appendChild(label);
+  });
+}
+
+// 网格下方的明细面板：有选中包就显示其 8 个字，没选就收起（不占高度）
+function renderPackDetail() {
+  var box = $("pack-detail");
+  if (!box) return;
+  if (!activePackId) {
+    box.classList.remove("show");
+    box.innerHTML = "";
+    return;
+  }
+  var pack = EXPAND_PACKS.find(function(p) { return p.id === activePackId; });
+  if (!pack) {
+    box.classList.remove("show");
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = "";
+  var title = document.createElement("div");
+  title.className = "detail-title";
+  title.textContent = pack.name + "（8 张）";
+  box.appendChild(title);
+
+  var row = document.createElement("div");
+  row.className = "detail-chars";
+  pack.chars.forEach(function(c) {
+    var span = document.createElement("span");
+    span.className = "detail-char";
+    span.textContent = c;
+    row.appendChild(span);
+  });
+  box.appendChild(row);
+  box.classList.add("show");
+}
+
+// 兼容旧调用：deckMode 改成按包启用
+function setDeckMode(mode, enabledPacks) {
+  if (Array.isArray(enabledPacks)) {
+    gameState.enabledPacks = enabledPacks.slice();
+  } else if (mode === "base") {
+    gameState.enabledPacks = [];
+  } else if (mode === "full") {
+    gameState.enabledPacks = EXPAND_PACKS.map(function(p) { return p.id; });
+  }
+  var n = rebuildDeck();
+  renderPackGrid();
+  return n;
 }
 
 function shuffle(arr) {
@@ -601,33 +975,60 @@ function shuffle(arr) {
 }
 
 // ============================================================
-// 胡牌判断：14张牌能否全部拆分成词库条目（回溯法）
+// 胡牌判断：14 张牌能否全部拆分成词库条目
+// 性能优化：按首字建索引 + 结果记忆化，否则听牌枚举 192 个字会卡死
 // ============================================================
+
+// 首字索引（词库是静态的，建一次即可）
+var _wordsByFirst = null;
+function getWordsByFirst() {
+  if (_wordsByFirst) return _wordsByFirst;
+  _wordsByFirst = {};
+  for (var i = 0; i < HU_WORDS.length; i++) {
+    var w = HU_WORDS[i];
+    var k = w.charAt(0);
+    if (!_wordsByFirst[k]) _wordsByFirst[k] = [];
+    _wordsByFirst[k].push(w);
+  }
+  return _wordsByFirst;
+}
 
 function canHu(hand) {
   if (!hand || hand.length === 0) return true;
   var sorted = hand.slice().sort();
-  return huBacktrack(sorted, []);
+  return huBacktrack(sorted, [], {});
 }
 
-function huBacktrack(hand, path) {
+function huBacktrack(hand, path, memo) {
   if (hand.length === 0) return true;
-  // 尝试每个词库条目
-  for (var i = 0; i < HU_WORDS.length; i++) {
-    var word = HU_WORDS[i];
-    if (word.length > hand.length) continue;
-    // 检查hand是否包含word的所有字
-    var temp = hand.slice();
-    var ok = true;
-    for (var k = 0; k < word.length; k++) {
-      var idx = temp.indexOf(word[k]);
-      if (idx === -1) { ok = false; break; }
-      temp.splice(idx, 1);
-    }
-    if (ok) {
-      if (huBacktrack(temp, path.concat([word]))) return true;
+  var key = hand.join("");
+  if (memo[key] === false) return false;
+
+  var idx = getWordsByFirst();
+  // 关键：不能只看 hand[0]，要尝试"手牌中出现过的每个字"作为词首
+  // 否则排序后首字若不是任何词的开头，会误判为不可胡
+  var tried = {};
+  for (var s = 0; s < hand.length; s++) {
+    var first = hand[s];
+    if (tried[first]) continue;
+    tried[first] = true;
+    var cands = idx[first] || [];
+    for (var i = 0; i < cands.length; i++) {
+      var word = cands[i];
+      if (word.length > hand.length) continue;
+      var temp = hand.slice();
+      var ok = true;
+      for (var k = 0; k < word.length; k++) {
+        var p = temp.indexOf(word.charAt(k));
+        if (p === -1) { ok = false; break; }
+        temp.splice(p, 1);
+      }
+      if (ok) {
+        if (huBacktrack(temp, path.concat([word]), memo)) return true;
+      }
     }
   }
+  memo[key] = false;
   return false;
 }
 
@@ -641,20 +1042,29 @@ function findHuSolution(hand) {
 
 function huBacktrackWithResult(hand, path) {
   if (hand.length === 0) return true;
-  for (var i = 0; i < HU_WORDS.length; i++) {
-    var word = HU_WORDS[i];
-    if (word.length > hand.length) continue;
-    var temp = hand.slice();
-    var ok = true;
-    for (var k = 0; k < word.length; k++) {
-      var idx = temp.indexOf(word[k]);
-      if (idx === -1) { ok = false; break; }
-      temp.splice(idx, 1);
-    }
-    if (ok) {
-      path.push(word);
-      if (huBacktrackWithResult(temp, path)) return true;
-      path.pop();
+  var idx = getWordsByFirst();
+  // 同样要遍历手牌中出现的每个字（不能只看 hand[0]）
+  var tried = {};
+  for (var s = 0; s < hand.length; s++) {
+    var first = hand[s];
+    if (tried[first]) continue;
+    tried[first] = true;
+    var cands = idx[first] || [];
+    for (var i = 0; i < cands.length; i++) {
+      var word = cands[i];
+      if (word.length > hand.length) continue;
+      var temp = hand.slice();
+      var ok = true;
+      for (var k = 0; k < word.length; k++) {
+        var p = temp.indexOf(word.charAt(k));
+        if (p === -1) { ok = false; break; }
+        temp.splice(p, 1);
+      }
+      if (ok) {
+        path.push(word);
+        if (huBacktrackWithResult(temp, path)) return true;
+        path.pop();
+      }
     }
   }
   return false;
@@ -691,10 +1101,43 @@ var gameState = {
   aiHands: {},
   gameOver: false,
   huVotes: {},
-  huProposer: null
+  huProposer: null,
+  huMode: "normal",   // 判定机制：easy 入门 / normal 进阶 / strict 严格
+  tenpai: false,      // 是否处于听牌状态（13 张，差 1 张可胡）
+  tenpaiWaits: [],    // 听牌等的是哪些字
+  dealerSeat: 0,      // 庄家座位（掷骰决出）
+  diceResult: null,   // 掷骰结果
+  enabledPacks: null, // 已启用的扩充包 id 列表（null = 全选）
+  targetPlayerCount: 4 // 目标对局人数（2-6，不足由 AI 补齐）
 };
 
 var dragSourceIndex = -1;   // 已弃用：拖动改由 dragState 管理，保留仅为兼容旧引用
+
+// ============================================================
+// 判定机制（官方 4 档）
+//   easy   入门：玩家本人认可即算胡牌
+//   normal 进阶：50% 以上玩家认可即算胡牌（默认）
+//   strict 严格：所有玩家认可才能胡牌
+// ============================================================
+var HU_MODES = {
+  easy: { label: "入门", desc: "玩家本人认可即算胡牌" },
+  normal: { label: "进阶", desc: "50% 以上玩家认可即算胡牌" },
+  strict: { label: "严格", desc: "所有玩家认可才能胡牌" }
+};
+
+function getHuMode() {
+  var m = gameState.huMode || "normal";
+  return HU_MODES[m] ? m : "normal";
+}
+
+function setHuMode(m) {
+  if (!HU_MODES[m]) return;
+  gameState.huMode = m;
+  var el = $("hu-mode-select");
+  if (el) el.value = m;
+  var hint = $("hu-mode-hint");
+  if (hint) hint.textContent = HU_MODES[m].desc;
+}
 
 // 手机端检测与横屏控制
 function isMobile() {
@@ -702,6 +1145,42 @@ function isMobile() {
 }
 function isPortrait() {
   return window.innerHeight > window.innerWidth;
+}
+
+// 把"实际可视高度"写进 CSS 变量 --vh。
+// 手机上 100vh 包含地址栏，100dvh 在部分第三方浏览器里也不准，
+// 用 visualViewport.height / innerHeight 实测最可靠。
+// #app 用 var(--vh) 之后，底部手牌区就不会被顶出屏幕。
+function syncViewportHeight() {
+  // 三通道取最小：innerHeight / visualViewport.height / documentElement.clientHeight。
+  // 优狐这类浏览器旋转后 innerHeight 可能滞后（仍是竖屏旧值 1004），
+  // 而 visualViewport 或 clientHeight 已更新到 452；取最小值保证
+  // #app 永远不超过真实可视区——大厅卡片用 margin:auto 垂直居中，
+  // 容器一旦比屏幕高，卡片就会被顶出屏幕外（表现为"页面沉到半屏"）。
+  var vv = window.visualViewport;
+  var candidates = [window.innerHeight];
+  if (vv && vv.height) candidates.push(vv.height);
+  if (document.documentElement && document.documentElement.clientHeight) {
+    candidates.push(document.documentElement.clientHeight);
+  }
+  var h = Math.min.apply(null, candidates.filter(function(x) { return x && x >= 100; }));
+  if (!h) return;                               // 全部异常才放弃
+  var root = document.documentElement;
+  root.style.setProperty("--vh", h + "px");
+  // 伪全屏跟随真实可视高度
+  if (root.classList.contains("pseudo-fs")) {
+    var vh = (vv && vv.height) ? vv.height : h;
+    if (vh && vh >= 100) root.style.setProperty("--fs-h", vh + "px");
+  }
+}
+
+// 旋转后优狐的高度更新是滞后的：一次性触发一串延迟重测，
+// 200/400/700/1000/1500ms 各来一次，直到有一个通道给出新值。
+function syncViewportHeightWithRetry() {
+  syncViewportHeight();
+  [200, 400, 700, 1000, 1500].forEach(function(t) {
+    setTimeout(syncViewportHeight, t);
+  });
 }
 
 function showRotateOverlay() {
@@ -713,14 +1192,44 @@ function hideRotateOverlay() {
   if (ov) ov.classList.remove("active");
 }
 
-// 第三方浏览器（X5/UC/夸克/QQ/百度/微博等）会把原生全屏当成"播放器全屏"接管，
-// 上滑手势被解释成音量/亮度调节。这类浏览器一律改用 CSS 伪全屏。
-function isThirdPartyBrowser() {
+// 第三方浏览器（X5/UC/夸克/QQ/百度/微博/优狐等）会把原生全屏当成"播放器全屏"接管，
+// 上滑手势被解释成音量/亮度调节。
+//
+// 关键教训：不能靠"UA 黑名单"或"Chrome 白名单"判断。
+// 优狐(m.you.hou) 这类套壳浏览器用的是标准 Chrome UA，UA 里没有任何第三方标识，
+// 按 Chrome 放行就会漏判 → 上滑仍弹音量条。
+//
+// 最终策略：只有「确定是系统自带浏览器」才允许原生全屏，其余一律伪全屏。
+function isSystemBrowser() {
   var ua = navigator.userAgent;
-  if (/MicroMessenger|QQBrowser|MQQBrowser|UCBrowser|Quark|BaiduHD|Weibo|XWEB|MxBrowser|LieBao|2345Explorer/i.test(ua)) return true;
-  // X5 内核标志
-  if (/X5\/|TBS\//i.test(ua)) return true;
-  return false;
+  if (/Android/.test(ua)) {
+    // Android 上仅认：Chrome 官方包、Edge、Firefox、三星浏览器
+    // 且 UA 必须没有第三方壳标识（套壳常伪装 Chrome，故额外排除已知壳）
+    var isThirdPartyShell = /MicroMessenger|QQBrowser|MQQBrowser|UCBrowser|Quark|BaiduHD|Weibo|XWEB|MxBrowser|LieBao|2345Explorer|HuaweiBrowser|VivoBrowser|HeyTapBrowser|MiuiBrowser|OppoBrowser|you\.hou|YYB|SogouMobileBrowser|QihooBrowser/i.test(ua);
+    if (isThirdPartyShell) return false;
+    // 系统 WebView 不是浏览器全屏场景
+    if (/; wv\)/.test(ua)) return false;
+    // 明确放行官方引擎
+    if (/EdgA\//.test(ua)) return true;                        // Edge Android
+    if (/Firefox\/\d+/.test(ua) && !/FxiOS/.test(ua)) return true;
+    if (/SamsungBrowser\//.test(ua)) return true;
+    // 纯 Chrome：UA 里带 "Chrome/xx" 且不带任何壳标识
+    if (/Chrome\/\d+/.test(ua)) return true;
+    return false;
+  }
+  // iOS：只有 Safari 本体
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    if (/Version\/[\d.]+.*Safari/.test(ua) &&
+        !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|QQBrowser|UCBrowser|Quark/i.test(ua)) return true;
+    return false;
+  }
+  // 桌面端：原生全屏行为正常
+  return true;
+}
+
+// 兼容旧调用：需要伪全屏的场景 = 移动端且非系统浏览器
+function isThirdPartyBrowser() {
+  return isMobile() && !isSystemBrowser();
 }
 
 // CSS 伪全屏：只是把页面铺满视口，不碰 Fullscreen API
@@ -738,14 +1247,19 @@ function disablePseudoFullscreen() {
 
 function requestFullscreenAndLandscape() {
   if (!isMobile()) return;
+
   // 移动端统一走 CSS 伪全屏，不调用任何 Fullscreen API。
-  // 优狐(m.you.hou) 等套壳浏览器 UA 与 Chrome 完全一致，无法区分；
-  // 且它们把"元素全屏"当成视频播放器全屏（fullscreenElement 仍是我们的元素，
+  //
+  // 原因：优狐(m.you.hou) 等套壳浏览器 UA 与 Chrome 完全一致，无法区分；
+  // 且它们把"元素全屏"直接当成视频播放器全屏（fullscreenElement 仍是我们的元素，
   // 但手势被接管 → 上滑弹音量条）。既然无法可靠识别，就一律不用原生全屏。
+  // 伪全屏已能满足铺满屏幕的需求，且完全不影响手势。
   enablePseudoFullscreen();
 }
 
-// 运行时自救：只要出现原生全屏，一律立即退出并切回伪全屏。
+// 运行时自救：只要出现原生全屏（不管是谁触发的），一律立即退出并切回伪全屏。
+// 套壳浏览器把全屏当播放器接管时 fullscreenElement 仍是我们的元素，无法靠它区分，
+// 所以干脆不允许原生全屏存在。
 function watchFullscreenHijack() {
   if (window.__fsHijackBound) return;
   window.__fsHijackBound = true;
@@ -793,21 +1307,34 @@ var RELAY_SERVERS = [];
 var customSignalingUrl = "";
 
 // 声网 Agora RTM 公共通道（解决跨网络 P2P 打洞失败问题）
-// App ID / Certificate 已 AES-256 加密存储，运行时解密（见下方 decryptAgoraSecrets）
+// 凭证存放在服务器端（见 worker.js），浏览器只拿短期通行证
 
 var rtmClient = null;      // 声网 RTM 客户端实例
 var rtmChannel = null;     // 声网 RTM 频道对象（频道名 = mahjong-房间号）
 var rtmLoggedIn = false;   // 是否已登录声网
 var rtmActive = false;     // 声网通道是否可用（加入频道后为 true）
+var rtmReconnectAttempts = 0;  // 断线重连次数
+var lastRtmToken = null;       // 缓存的 token，供重连使用
 
+// ICE 服务器：STUN 用于探测公网地址，TURN 用于打洞失败时中继转发
+// 注意：自建信令（WebRTC P2P）模式下，对称 NAT（移动 4G 常见）必须靠 TURN 才能连通
 var STUN_SERVERS = [
+  // ---- STUN ----
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun.stunhardware.com:19302" },
   { urls: "stun:stun.qq.com:3478" },
   { urls: "stun:stun.aliyun.com:3478" },
   { urls: "stun:stun.miwifi.com:3478" },
-  { urls: "stun:stun.chat.bilibili.com:3478" }
+  { urls: "stun:stun.chat.bilibili.com:3478" },
+  // ---- TURN（公开免费中继，打洞失败时兜底）----
+  // evan-brass 公开 TURN：四个端口均可用，凭证为公开的 user/password
+  { urls: "turn:turn.evan-brass.net:3478", username: "user", credential: "password" },
+  { urls: "turn:turn.evan-brass.net:3478?transport=tcp", username: "user", credential: "password" },
+  { urls: "turns:turn.evan-brass.net:443?transport=tcp", username: "user", credential: "password" },
+  // metered 公开 TURN（备用，A 套餐免费额度；若失效会自动跳过）
+  { urls: "turn:global.relay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:global.relay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
 ];
 
 function isOnlineMode() {
@@ -818,6 +1345,68 @@ function isOnlineMode() {
 
 function isAI(playerId) {
   return playerId && playerId.indexOf("ai-") === 0;
+}
+
+// 自检兜底：确保"我"始终在玩家列表里、座位有效、手里有牌。
+// 之前出现过"自己不在 players 里"→ 界面只剩几个 AI、自己成了旁观者。
+// 这里就地修复，而不是让玩家重开。
+function ensureSelfInPlayers() {
+  if (!gameState.me || !gameState.me.id) return false;
+  if (!gameState.players) gameState.players = [];
+
+  var idx = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+
+  if (idx === -1) {
+    // 我不在列表：补进最后一位
+    var seat = gameState.players.length;
+    gameState.players.push({
+      id: gameState.me.id,
+      name: gameState.me.name || "我",
+      seat: seat,
+      ready: true,
+      isCreator: !!gameState.isCreator
+    });
+    if (!gameState.otherInfo) gameState.otherInfo = {};
+    gameState.otherInfo[gameState.me.id] = { handCount: 0, melds: [], discards: [] };
+    idx = gameState.players.length - 1;
+    console.warn("[自检] 把自己补回玩家列表，座位=" + seat);
+  }
+
+  if (gameState.myIndex !== idx) gameState.myIndex = idx;
+
+  // 只有在座位号确实不连续时才重排。
+  // 之前是无条件 forEach 重排，开局后每次 renderGame 都会执行，
+  // 一旦顺序有变化 currentSeat 就指向了别人，表现为"轮到我了却没有摸牌"。
+  var needRenumber = false;
+  for (var i = 0; i < gameState.players.length; i++) {
+    if (gameState.players[i].seat !== i) { needRenumber = true; break; }
+  }
+  if (needRenumber) {
+    gameState.players.forEach(function(p, i) { p.seat = i; });
+    gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+    // 重排后 currentSeat 也要按 id 重新定位，否则会指向错误的人
+    if (gameState.currentSeatId) {
+      var ns = gameState.players.findIndex(function(p) { return p.id === gameState.currentSeatId; });
+      if (ns >= 0) gameState.currentSeat = ns;
+    }
+    console.warn("[自检] 座位序号已重排");
+  }
+
+  // 手牌兜底：已开局却没有牌，就补发 13 张
+  if (gameState.gameStarted && (!gameState.myHand || gameState.myHand.length === 0)) {
+    var refill = [];
+    for (var i = 0; i < 13; i++) {
+      if (gameState.deck && gameState.deck.length) {
+        refill.push(gameState.deck.pop());
+        gameState.remaining = gameState.deck.length;
+      }
+    }
+    if (refill.length) {
+      gameState.myHand = refill;
+      console.warn("[自检] 手牌为空，已补发 " + refill.length + " 张");
+    }
+  }
+  return true;
 }
 
 function getHumanPlayers() {
@@ -876,12 +1465,18 @@ function dedupeGameMsg(msg) {
 function handleGameMsg(msg) {
   if (!msg || !msg.type) return;
   if (msg.fromId === gameState.me.id) return;
+
+  // P2P 与中继（Agora/WebSocket）现在是双发，同一消息可能到达两次。
+  // 用「发送者+类型+内容指纹」在短窗口内去重，避免同一张牌被处理两遍。
   if (!dedupeGameMsg(msg)) return;
 
   switch (msg.type) {
     case "player-joined": onRemotePlayerJoined(msg.data); break;
     case "player-left": onRemotePlayerLeft(msg.data); break;
     case "start-game": onRemoteStartGame(msg.data); break;
+    case "dice-roll": onRemoteDiceRoll(msg.data); break;
+    case "dice-phase": onRemoteDicePhase(msg.data); break;
+    case "dice-done": onRemoteDiceDone(msg.data); break;
     case "turn-change": onRemoteTurnChange(msg.data); break;
     case "draw": onRemoteDraw(msg.data); break;
     case "discard": onRemoteDiscard(msg.data); break;
@@ -909,9 +1504,14 @@ function onRemotePlayerJoined(data) {
     p.seat = p.seat != null ? p.seat : gameState.players.length;
     gameState.players.push(p);
     gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
-    renderLobby();
-    updateStartBtn();
+  } else {
+    // 已存在的玩家：只更新名字和座位，绝不覆盖 isCreator
+    existing.name = p.name || existing.name;
+    if (p.seat != null) existing.seat = p.seat;
   }
+  renderLobby();
+  updateStartBtn();
+  ensureSelfInPlayers();
 }
 
 function onRemotePlayerLeft(data) {
@@ -936,6 +1536,21 @@ function onRemoteStartGame(data) {
   gameState.deck = data.deck || [];
   gameState.remaining = data.remaining || 0;
   gameState.currentSeat = data.firstSeat || 0;
+  // 沿用房主掷骰决出的庄家
+  if (data.dealerSeat !== undefined) {
+    gameState.dealerSeat = data.dealerSeat;
+    gameState.diceResult = data.dice || null;
+  }
+  // 沿用房主启用的扩充包（确保双方牌库一致）
+  if (data.enabledPacks) {
+    setDeckMode(null, data.enabledPacks);
+  }
+  // 沿用房主选定的判定机制
+  if (data.huMode && HU_MODES[data.huMode]) {
+    gameState.huMode = data.huMode;
+    var sel = $("hu-mode-select");
+    if (sel) sel.value = data.huMode;
+  }
   gameState.players = data.players || gameState.players;
   gameState.players.forEach(function(p) {
     var hand = data.hands[p.id];
@@ -943,14 +1558,21 @@ function onRemoteStartGame(data) {
       gameState.otherInfo[p.id] = { handCount: hand.length, melds: [], discards: [] };
     }
   });
-  if (data.hands[gameState.me.id] !== undefined) {
-    gameState.myHand = data.hands[gameState.me.id];
+  if (data.hands && data.hands[gameState.me.id] !== undefined) {
+    gameState.myHand = data.hands[gameState.me.id].slice();
     gameState.myMelds = [];
     gameState.myDiscards = [];
     gameState.myDraws = [];
   }
+  // 注意：hands 里没有我时保留现有手牌，绝不清空（否则会变成旁观者）
+
   gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+  ensureSelfInPlayers();
   saveGameState();
+
+  // 进入牌桌：定庄公示已由 onRemoteDiceDone 弹出过，这里直接清骰子、开打。
+  closeModal();
+  clearInlineDice();
   showScreen("game");
   renderGame();
   startTurnRemote(data.firstSeat || 0);
@@ -958,6 +1580,9 @@ function onRemoteStartGame(data) {
 
 function startTurnRemote(seat) {
   gameState.currentSeat = seat;
+  // 记录当前行动者的 id：座位序号万一被重排，还能按 id 找回是谁的回合
+  var cur = gameState.players[seat];
+  gameState.currentSeatId = cur ? cur.id : null;
   gameState.turnPhase = "draw";
   gameState.canDraw = false;
   gameState.canDiscard = false;
@@ -988,6 +1613,7 @@ function startTurnRemote(seat) {
   }
 
   updateTurnIndicator();
+  renderPlayerInfo();   // 庄家标记/回合高亮跟着刷新（开局后第一次走这里）
   renderActionBar();
   renderHand();
 }
@@ -1027,7 +1653,7 @@ function onRemoteDiscard(data) {
   renderDiscards();
   showToast((p ? p.name : "玩家") + " 打出: " + data.card, 1500);
 
-  var nextSeat = (data.nextSeat !== undefined) ? data.nextSeat : (gameState.currentSeat + 1) % 4;
+  var nextSeat = (data.nextSeat !== undefined) ? data.nextSeat : nextSeatOf(gameState.currentSeat);
   enterWaitingAction(nextSeat, data.card);
 }
 
@@ -1055,7 +1681,8 @@ function onRemoteEat(data) {
   renderMelds();
   renderPlayerInfo();
   renderActionBar();
-  showToast((p ? p.name : "玩家") + " 吃了 " + data.word, 2000);
+  // 官方规则：吃牌时无需亮出词组。别人吃牌只提示吃了哪张牌，不暴露组成的词
+  showToast((p ? p.name : "玩家") + " 吃了「" + (data.card || "") + "」", 2000);
 }
 
 function onRemotePass(data) {
@@ -1180,13 +1807,26 @@ function updateHuConfirmUI() {
   // 只统计真人玩家（排除AI和发起者）
   var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== proposerId; });
   var votedCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] !== undefined; }).length;
+  var agreeCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] === true; }).length;
   var remaining = humanVoters.length - votedCount;
+  var mode = getHuMode();
+  var modeTag = "【" + HU_MODES[mode].label + "】";
+
   if (humanVoters.length === 0) {
-    $("hu-vote-status").textContent = "无其他真人玩家，自动通过";
+    $("hu-vote-status").textContent = modeTag + " 无其他真人玩家，自动通过";
   } else if (remaining > 0) {
-    $("hu-vote-status").textContent = "等待 " + remaining + "/" + humanVoters.length + " 名真人确认...";
+    var need = "";
+    if (mode === "normal") {
+      var needCount = Math.ceil(humanVoters.length / 2);
+      need = "（需 " + needCount + " 票认可，已有 " + agreeCount + "）";
+    } else if (mode === "strict") {
+      need = "（需全员同意）";
+    } else {
+      need = "（发起者认可即可）";
+    }
+    $("hu-vote-status").textContent = modeTag + " 等待 " + remaining + "/" + humanVoters.length + " 名真人确认 " + need;
   } else {
-    $("hu-vote-status").textContent = "所有真人已确认";
+    $("hu-vote-status").textContent = modeTag + " 所有真人已确认（认可 " + agreeCount + "/" + humanVoters.length + "）";
   }
 }
 
@@ -1194,40 +1834,72 @@ function checkVotesComplete() {
   var proposerId = gameState.huProposer;
   var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== proposerId; });
 
-  // 如果没有其他真人（只有1个真人），自动通过
+  // 如果没有其他真人（只有1个真人），按判定档位决定
   if (humanVoters.length === 0) {
-    var proposer = gameState.players.find(function(p) { return p.id === proposerId; });
-    var huWords = null;
-    if (proposer && isAI(proposer.id)) {
-      // AI胡牌，房主端计算拆分
-      if (gameState.isCreator) {
-        var aiHand = getAIHand(proposerId);
-        huWords = findHuSolution(aiHand);
-      }
+    var proposer0 = gameState.players.find(function(p) { return p.id === proposerId; });
+    var huWords0 = null;
+    if (proposer0 && isAI(proposer0.id) && gameState.isCreator) {
+      huWords0 = findHuSolution(getAIHand(proposerId));
     }
-    endOnlineGame(proposerId, huWords);
-    broadcastGameMsg("game-over", { winnerId: proposerId, huWords: huWords });
-    hideHuConfirm();
+    finishHu(proposerId, huWords0);
     return;
   }
 
   var votedCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] !== undefined; }).length;
-  if (votedCount >= humanVoters.length) {
-    var noCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] === false; }).length;
-    if (noCount > 0) {
-      showToast("胡牌被驳回", 3000);
-    } else {
-      var proposer2 = gameState.players.find(function(p) { return p.id === proposerId; });
-      var huWords2 = null;
-      if (proposer2 && isAI(proposer2.id) && gameState.isCreator) {
-        var aiHand2 = getAIHand(proposerId);
-        huWords2 = findHuSolution(aiHand2);
-      }
-      endOnlineGame(proposerId, huWords2);
-      broadcastGameMsg("game-over", { winnerId: proposerId, huWords: huWords2 });
-    }
-    hideHuConfirm();
+  if (votedCount < humanVoters.length) return;   // 还有人没投
+
+  var agreeCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] === true; }).length;
+  var noCount = humanVoters.filter(function(p) { return gameState.huVotes[p.id] === false; }).length;
+
+  // ---- 按判定档位裁决 ----
+  var mode = getHuMode();
+  var passed = false;
+  if (mode === "easy") {
+    // 入门：发起者本人认可即算胡（这里发起者已同意，故直接通过）
+    passed = true;
+  } else if (mode === "normal") {
+    // 进阶：50% 以上玩家认可
+    passed = (agreeCount / humanVoters.length) >= 0.5;
+  } else {
+    // 严格：所有玩家认可
+    passed = (noCount === 0);
   }
+
+  if (passed && (mode === "easy" || agreeCount > 0)) {
+    var proposer2 = gameState.players.find(function(p) { return p.id === proposerId; });
+    var huWords2 = null;
+    if (proposer2 && isAI(proposer2.id) && gameState.isCreator) {
+      huWords2 = findHuSolution(getAIHand(proposerId));
+    }
+    finishHu(proposerId, huWords2);
+  } else {
+    // 驳回：必须把回合推进，否则全场卡死
+    var msg = mode === "easy" ? "胡牌被驳回"
+      : mode === "normal" ? ("认可票不足（" + agreeCount + "/" + humanVoters.length + "），胡牌被驳回")
+        : "胡牌被驳回（需全员同意）";
+    showToast(msg, 3000);
+    gameState.huVotes = {};
+    gameState.huProposer = null;
+    hideHuConfirm();
+    // 把回合交给下家继续
+    var nextSeat = (gameState.actionTargetSeat >= 0)
+      ? gameState.actionTargetSeat
+      : nextSeatOf(gameState.currentSeat);
+    gameState.lastDiscard = null;
+    gameState.lastDiscardBy = -1;
+    gameState.actionTargetSeat = -1;
+    startTurnRemote(nextSeat);
+    if (isOnlineMode()) {
+      broadcastGameMsg("pass-action", { playerId: gameState.me.id, nextSeat: nextSeat });
+    }
+  }
+}
+
+// 胡牌通过：统一结算
+function finishHu(proposerId, huWords) {
+  endOnlineGame(proposerId, huWords);
+  broadcastGameMsg("game-over", { winnerId: proposerId, huWords: huWords });
+  hideHuConfirm();
 }
 
 function getAIHand(aiId) {
@@ -1277,17 +1949,16 @@ function onRemoteRestart(data) {
 
 function broadcastGameMsg(type, data) {
   var msg = { type: type, fromId: gameState.me.id, data: data };
-  var sent = 0;
   Object.keys(peerDc).forEach(function(id) {
     var ch = peerDc[id];
     if (ch && ch.readyState === "open") {
       ch.send(JSON.stringify(msg));
-      sent++;
     }
   });
   // 注意：不能写成 `if (sent === 0 && isOnlineMode())`。
-  // 只要有 1 个 P2P 通道通了就不再走中继，其他人会收不到消息（出牌/胡牌丢失 → 卡住）。
-  // 因此 P2P 与中继（Agora / WebSocket）同时发送，由接收端按内容指纹去重。
+  // 掷骰阶段 P2P 通道往往还没全部建立（甚至一个都没有），
+  // 若只要有 1 个通道通了就不走信令/Agora，其他人会收不到 dice-done → 卡在"等待其他玩家"。
+  // 因此 P2P 与中继（Agora / WebSocket）同时发送，由接收端按 fromId 去重。
   if (isOnlineMode()) {
     sendSignalToServer({
       type: "broadcast",
@@ -1303,6 +1974,8 @@ function broadcastGameMsg(type, data) {
 
 function connectToRelay(retries) {
   retries = retries || 0;
+  // 房间状态心跳：无论哪种信令，都靠它兜住"对方进不来/我没进对方列表"的竞态
+  startRoomStateSync();
   // 信令地址留空 → 使用声网 Agora RTM 公共通道（玩家零配置，纯中继不受 NAT 限制）
   if (!customSignalingUrl) {
     connectViaAgora();
@@ -1388,6 +2061,8 @@ function handleSignalMessage(msg) {
 }
 
 function handleRoomList(players) {
+  // 记录房主发来的原始列表，供房客心跳判断"我是否已被房主接纳"
+  gameState.__hostPlayers = (players || []).slice();
   gameState.players = players.map(function(p) {
     return {
       id: p.id, name: p.name, seat: p.seat || 0,
@@ -1396,6 +2071,30 @@ function handleRoomList(players) {
   });
   var me = gameState.players.find(function(p) { return p.id === gameState.me.id; });
   if (!me) {
+    // 房间内同名即同一人：若列表里已有同名玩家（自己换了新 id 重进），
+    // 认领那条记录而不是新增一个自己。
+    var sameName = gameState.players.find(function(p) {
+      return p.name === gameState.me.name && !isAI(p.id);
+    });
+    if (sameName) {
+      var oldId = sameName.id;
+      if (gameState.otherInfo[oldId]) {
+        gameState.otherInfo[gameState.me.id] = gameState.otherInfo[oldId];
+        delete gameState.otherInfo[oldId];
+      }
+      sameName.id = gameState.me.id;
+      gameState.myIndex = sameName.seat || 0;
+      console.log("[重进] 认领同名座位 " + gameState.myIndex + "（旧id " + oldId + "）");
+      // 告诉房主把旧 id 换成新 id
+      sendSignalToServer({
+        type: "join-room", roomId: gameState.roomId,
+        player: { id: gameState.me.id, name: gameState.me.name, isCreator: gameState.isCreator, seat: gameState.myIndex }
+      });
+      renderLobby();
+      updateStartBtn();
+      startRoomStateSync();
+      return;
+    }
     gameState.players.push({
       id: gameState.me.id, name: gameState.me.name,
       seat: gameState.players.length, ready: false, isCreator: gameState.isCreator
@@ -1405,6 +2104,10 @@ function handleRoomList(players) {
       type: "join-room", roomId: gameState.roomId,
       player: { id: gameState.me.id, name: gameState.me.name, isCreator: gameState.isCreator, seat: gameState.myIndex }
     });
+    renderLobby();
+    updateStartBtn();
+    // 心跳会继续重试 join-room，直到房主列表里出现我
+    startRoomStateSync();
     return;
   }
   gameState.myIndex = me.seat || 0;
@@ -1425,8 +2128,8 @@ function updateStartBtn() {
   if (gameState.isCreator) {
     btn.style.display = "";
     var count = gameState.players.length;
-    btn.textContent = "开始游戏 (" + count + "/4，不足补AI)";
-    btn.disabled = count < 1;
+    btn.textContent = "开始游戏 (" + count + " 人，可2-6人)";
+    btn.disabled = count < 1;   // 至少1人，开局时补AI到2人
   } else {
     btn.style.display = "none";
   }
@@ -1676,92 +2379,63 @@ function handlePeerjsSignal(msg) {
 // ============================================================
 
 // ============================================================
-// 声网凭证（AES-256-CBC 加密存储，运行时解密；避免明文出现在代码中）
-// 真正的安全方案是放后端云函数，但个人项目 AES 混淆已足够
 // ============================================================
-var AGORA_KEY_B64 = "YOUR_AES_KEY_BASE64";
-var AGORA_IV_B64  = "YOUR_AES_IV_BASE64";
-var AGORA_SEC_B64 = "YOUR_ENCRYPTED_SECRETS_BASE64";
-var _agoraSecretsCache = null;
-function b64ToU8(b64) {
-  var bin = atob(b64), out = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-async function decryptAgoraSecrets() {
-  if (_agoraSecretsCache) return _agoraSecretsCache;
-  var key = await crypto.subtle.importKey('raw', b64ToU8(AGORA_KEY_B64), {name:'AES-CBC'}, false, ['decrypt']);
-  var plain = await crypto.subtle.decrypt({name:'AES-CBC', iv: b64ToU8(AGORA_IV_B64)}, key, b64ToU8(AGORA_SEC_B64));
-  _agoraSecretsCache = JSON.parse(new TextDecoder().decode(plain));
-  return _agoraSecretsCache;
-}
+// 声网 RTM 接入 —— 通行证由服务器签发
+// ------------------------------------------------------------
+// 这里刻意不保存任何 AppID / AppCertificate。
+// 浏览器只向同域的 /api/token 要一张短期通行证，私章始终留在服务器。
+//
+// 为什么用同域而非独立 Worker：
+//   workers.dev 域名在国内经常被 DNS 污染，玩家拿不到 token 就进不了联机。
+//   接口放在 Pages 项目自带的 /functions 下（同域名），可正常解析。
+//   若同域接口不可用，会自动回退到 WORKER_FALLBACK。
+// ============================================================
 
-// ---- CRC32 ----
-var _crc32Table = (function() {
-  var t = new Uint32Array(256);
-  for (var i = 0; i < 256; i++) {
-    var c = i;
-    for (var j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    t[i] = c >>> 0;
-  }
-  return t;
+var TOKEN_API = "/api/token";
+// 可选的独立 Worker 回退地址（部署者自行填写，例如
+// "https://你的worker名.你的子域.workers.dev/api/token"）。
+// 留空表示只用同域 /api/token。也可在浏览器控制台执行
+//   localStorage.setItem("mahjong_token_fallback", "https://...")
+// 临时指定，无需改动代码。
+var WORKER_FALLBACK = (function() {
+  try {
+    return localStorage.getItem("mahjong_token_fallback") || "";
+  } catch (e) { return ""; }
 })();
-function crc32Str(str) {
-  var bytes = new TextEncoder().encode(str), crc = 0xFFFFFFFF;
-  for (var i = 0; i < bytes.length; i++) crc = _crc32Table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
+var _agoraTokenCache = null;   // { appId, token, expireAt }
 
-// ---- 字节缓冲 ----
-function ByteBuf() { this.buf = new Uint8Array(512); this.pos = 0; }
-ByteBuf.prototype.ensure = function(n) {
-  if (this.pos + n > this.buf.length) {
-    var nb = new Uint8Array(this.buf.length * 2); nb.set(this.buf); this.buf = nb;
+// 向服务器申请通行证；同一张未过期的会复用，避免每次进房都请求
+async function fetchAgoraToken(uid) {
+  var now = Date.now();
+  if (_agoraTokenCache && _agoraTokenCache.expireAt - 60000 > now) {
+    return _agoraTokenCache;
   }
-};
-ByteBuf.prototype.u16 = function(v) { this.ensure(2); this.buf[this.pos]=v&0xFF; this.buf[this.pos+1]=(v>>>8)&0xFF; this.pos+=2; return this; };
-ByteBuf.prototype.u32 = function(v) { this.ensure(4); this.buf[this.pos]=v&0xFF; this.buf[this.pos+1]=(v>>>8)&0xFF; this.buf[this.pos+2]=(v>>>16)&0xFF; this.buf[this.pos+3]=(v>>>24)&0xFF; this.pos+=4; return this; };
-ByteBuf.prototype.bytes = function(b) { this.u16(b.length); this.ensure(b.length); this.buf.set(b, this.pos); this.pos+=b.length; return this; };
-ByteBuf.prototype.str = function(s) { return this.bytes(new TextEncoder().encode(s)); };
-ByteBuf.prototype.mapU32 = function(map) {
-  var keys = Object.keys(map); this.u16(keys.length);
-  for (var i = 0; i < keys.length; i++) { this.u16(parseInt(keys[i])); this.u32(map[keys[i]]); }
-  return this;
-};
-ByteBuf.prototype.pack = function() { return this.buf.slice(0, this.pos); };
 
-function concatBytes(arr) {
-  var total = 0, i; for (i = 0; i < arr.length; i++) total += arr[i].length;
-  var out = new Uint8Array(total), pos = 0;
-  for (i = 0; i < arr.length; i++) { out.set(arr[i], pos); pos += arr[i].length; }
-  return out;
-}
-function u8ToB64(bytes) {
-  var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s);
-}
-async function hmacSha256(keyStr, msgBytes) {
-  var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(keyStr), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
-  return new Uint8Array(await crypto.subtle.sign('HMAC', key, msgBytes));
-}
+  var bases = [TOKEN_API];
+  if (WORKER_FALLBACK) bases.push(WORKER_FALLBACK);
+  var lastErr = null;
 
-// 生成声网 RTM Token（浏览器纯 JS 实现，无需后端）
-async function generateRtmToken(appId, appCert, uid, expireSec) {
-  var kRtmLogin = 1000;
-  var salt = (Math.random() * 0xFFFFFFFF) >>> 0;
-  var ts = Math.floor(Date.now() / 1000) + (expireSec || 86400);
-  var messages = {}; messages[kRtmLogin] = ts;
-  var mBuf = new ByteBuf();
-  mBuf.u32(salt).u32(ts).mapU32(messages);
-  var m = mBuf.pack();
-  // RTM: channelName = uid, uidStr = ""
-  var toSign = concatBytes([new TextEncoder().encode(appId), new TextEncoder().encode(uid), new TextEncoder().encode(""), m]);
-  var sig = await hmacSha256(appCert, toSign);
-  var crcCh = crc32Str(uid);
-  var crcUid = crc32Str("");
-  var cBuf = new ByteBuf();
-  cBuf.bytes(sig).u32(crcCh).u32(crcUid).bytes(m);
-  return "006" + appId + u8ToB64(cBuf.pack());
+  for (var i = 0; i < bases.length; i++) {
+    var base = bases[i];
+    if (!base) continue;
+    try {
+      var url = base + "?uid=" + encodeURIComponent(uid);
+      var resp = await fetch(url, { method: "GET", cache: "no-store" });
+      if (!resp.ok) throw new Error("http " + resp.status);
+      var data = await resp.json();
+      if (!data || !data.token || !data.appId) throw new Error("malformed");
+      _agoraTokenCache = {
+        appId: data.appId,
+        token: data.token,
+        expireAt: data.expireAt || (now + (data.ttl || 3600) * 1000)
+      };
+      return _agoraTokenCache;
+    } catch (e) {
+      lastErr = e;
+      console.warn("token endpoint failed: " + base + " -> " + e.message);
+    }
+  }
+  throw lastErr || new Error("all token endpoints failed");
 }
 
 // 发布消息到 RTM 频道（广播给房间内所有玩家）
@@ -1785,15 +2459,50 @@ function handleAgoraSignal(msg, senderId) {
       // 有人加入房间：加入列表并广播最新完整列表
       var p = msg.player;
       if (!p || !p.id || p.id === gameState.me.id) return;
+      // 房客的 join 只有房主有权记账，避免双方各自维护一份互相打架
+      if (!gameState.isCreator) return;
       var existing = gameState.players.find(function(pl) { return pl.id === p.id; });
       if (!existing) {
+        // 同一个房间内不允许同名：名字一致视为同一人（退出重进换了新 id），
+        // 复用原座位并把旧 id 换成新 id，避免同一人出现两次、人数被撑大。
+        var sameName = gameState.players.find(function(pl) {
+          return pl.name === p.name && !isAI(pl.id);
+        });
+        if (sameName) {
+          var oldId = sameName.id;
+          // 把该玩家的手牌/牌河/副露等对局数据迁到新 id 下
+          if (gameState.otherInfo[oldId]) {
+            gameState.otherInfo[p.id] = gameState.otherInfo[oldId];
+            delete gameState.otherInfo[oldId];
+          }
+          if (gameState.aiHands && gameState.aiHands[oldId]) {
+            gameState.aiHands[p.id] = gameState.aiHands[oldId];
+            delete gameState.aiHands[oldId];
+          }
+          if (gameState.pendingHands && gameState.pendingHands[oldId]) {
+            gameState.pendingHands[p.id] = gameState.pendingHands[oldId];
+            delete gameState.pendingHands[oldId];
+          }
+          existing = sameName;
+          existing.id = p.id;              // 换 id，座位不动
+          existing.ready = false;
+          console.log("[重进] 同名玩家 " + p.name + " 复用座位 " + existing.seat + "（旧id " + oldId + " → 新id " + p.id + "）");
+          showToast(p.name + " 重新连接，已复用原座位", 2500);
+        } else {
+          existing = null;
+        }
+      }
+      if (!existing) {
         gameState.players.push({ id: p.id, name: p.name, seat: gameState.players.length, ready: false, isCreator: false });
-        gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+        gameState.otherInfo[p.id] = gameState.otherInfo[p.id] || { handCount: 0, melds: [], discards: [] };
+        showToast(p.name + " 加入了房间", 2500);
+      } else {
+        // 已在列表：更新名字（可能改了昵称）
+        existing.name = p.name || existing.name;
       }
       publishRtm({ type: "room-update", players: gameState.players.slice() });
       renderLobby();
       updateStartBtn();
-      showToast(p.name + " 加入了房间", 2500);
       break;
     case "room-update":
     case "room-joined":
@@ -1806,6 +2515,44 @@ function handleAgoraSignal(msg, senderId) {
   }
 }
 
+// 房间状态心跳：房主每 3 秒重播一次玩家列表。
+// 解决「手机端已进房间、电脑端还没进」的竞态——
+// 房客 join 频道时机晚于房主那唯一一次 room-update 广播时，
+// 那条消息就永久丢失，双方列表再也不一致。有了心跳，几秒内自愈。
+var _roomSyncTimer = null;
+var _roomJoinRetries = 0;
+
+function startRoomStateSync() {
+  if (_roomSyncTimer) { clearInterval(_roomSyncTimer); _roomSyncTimer = null; }
+  _roomJoinRetries = 0;
+  _roomSyncTimer = setInterval(function() {
+    if (!rtmChannel || !rtmLoggedIn || !rtmActive) return;
+    if (gameState.gameStarted) { stopRoomStateSync(); return; }
+
+    if (gameState.isCreator) {
+      // 房主：广播当前玩家列表（房客据此对齐）
+      publishRtm({ type: "room-update", players: gameState.players.slice() });
+    } else {
+      // 房客：若房主列表里没有我，重发 join-room（最多 6 次，约 18 秒）
+      var inHostList = (gameState.__hostPlayers || []).some(function(p) {
+        return p && p.id === gameState.me.id;
+      });
+      if (!inHostList && _roomJoinRetries < 6) {
+        _roomJoinRetries++;
+        console.log("[room-sync] 重发 join-room（第 " + _roomJoinRetries + " 次）");
+        publishRtm({
+          type: "join-room", roomId: gameState.roomId,
+          player: { id: gameState.me.id, name: gameState.me.name, isCreator: false, seat: gameState.myIndex }
+        });
+      }
+    }
+  }, 3000);
+}
+
+function stopRoomStateSync() {
+  if (_roomSyncTimer) { clearInterval(_roomSyncTimer); _roomSyncTimer = null; }
+}
+
 // 接入声网 RTM 公共通道（信令地址留空时）
 async function connectViaAgora() {
   connMode = "agora";
@@ -1815,17 +2562,17 @@ async function connectViaAgora() {
     showToast("声网 SDK 加载失败，请刷新页面重试", 4000);
     return;
   }
-  var secrets;
+  var tok;
   try {
-    secrets = await decryptAgoraSecrets();
+    tok = await fetchAgoraToken(gameState.me.id);
   } catch (e) {
-    console.error("Agora secrets decrypt error:", e);
-    setConnStatus("声网凭证解密失败", "#e94560");
-    showToast("声网凭证解密失败，请刷新页面重试", 4000);
+    console.error("Agora token fetch error:", e);
+    setConnStatus("无法获取联机通行证", "#e94560");
+    showToast("无法获取联机通行证，请检查网络后重试；也可填写自建信令地址", 4500);
     return;
   }
   try {
-    rtmClient = AgoraRTM.createInstance(secrets.appId);
+    rtmClient = AgoraRTM.createInstance(tok.appId);
   } catch (e) {
     console.error("RTM init error:", e);
     setConnStatus("声网初始化失败", "#e94560");
@@ -1835,10 +2582,30 @@ async function connectViaAgora() {
   rtmClient.on("ConnectionStateChanged", function(state, reason) {
     if (state === "CONNECTED") {
       rtmActive = true;
+      rtmReconnectAttempts = 0;
       setConnStatus("声网通道已连接 · 房间 " + gameState.roomId, "#4ade80");
     } else if (state === "DISCONNECTED") {
       rtmActive = false;
-      setConnStatus("声网通道已断开", "#e94560");
+      setConnStatus("声网通道已断开，重连中...", "#e94560");
+      // 自动重连（最多 5 次，间隔递增）
+      if (rtmReconnectAttempts < 5) {
+        rtmReconnectAttempts++;
+        var delay = 2000 * rtmReconnectAttempts;
+        console.log("[RTM] 将在 " + delay + "ms 后重连（第 " + rtmReconnectAttempts + " 次）");
+        setTimeout(function() {
+          if (rtmClient && !rtmActive) {
+            rtmClient.login({ uid: gameState.me.id, token: lastRtmToken })
+              .then(function() {
+                console.log("[RTM] 重连成功");
+                return rtmChannel ? rtmChannel.join() : null;
+              })
+              .catch(function(err) { console.error("[RTM] 重连失败:", err); });
+          }
+        }, delay);
+      } else {
+        setConnStatus("声网通道已断开，请刷新页面", "#e94560");
+        showToast("联机已断开，请刷新页面重新进入房间", 5000);
+      }
     }
   });
   rtmClient.on("MemberLeft", function(memberId) {
@@ -1846,21 +2613,16 @@ async function connectViaAgora() {
     var idx = gameState.players.findIndex(function(pl) { return pl.id === memberId; });
     if (idx >= 0 && !isAI(memberId)) {
       gameState.players.splice(idx, 1);
+      // 房主负责广播最新列表；房客即便广播也会被房主端忽略（只认房主记账）
       publishRtm({ type: "room-update", players: gameState.players.slice() });
       renderLobby();
       updateStartBtn();
+      showToast((gameState.players[idx] ? gameState.players[idx].name : "一名玩家") + " 离开了房间", 2500);
     }
   });
-  // 生成 RTM Token（AES 解密后的 Certificate + 当前用户 ID）
-  var rtmToken;
-  try {
-    rtmToken = await generateRtmToken(secrets.appId, secrets.appCert, gameState.me.id, 86400);
-  } catch (e) {
-    console.error("RTM token generate error:", e);
-    setConnStatus("声网 Token 生成失败", "#e94560");
-    showToast("声网 Token 生成失败，请刷新页面重试", 4000);
-    return;
-  }
+  // 通行证已由服务器签发
+  var rtmToken = tok.token;
+  lastRtmToken = rtmToken;   // 缓存供断线重连使用
   rtmClient.login({ uid: gameState.me.id, token: rtmToken }).then(function() {
     rtmLoggedIn = true;
     var chName = "mahjong-" + gameState.roomId;
@@ -1870,10 +2632,12 @@ async function connectViaAgora() {
       try {
         var obj = JSON.parse(msg.text);
         if (!obj || !obj.type) return;
+        console.log("[RTM recv]", obj.type, "from=" + (obj.fromId || senderId),
+          "myId=" + gameState.me.id, "payloadType=" + (obj.payload && obj.payload.type));
         if (isSignalType(obj.type)) {
           handleAgoraSignal(obj, senderId);
         } else if (obj.type === "room-msg") {
-          if (obj.fromId !== gameState.me.id) handleGameMsg(obj.payload);
+          if (obj.fromId !== gameState.me.id && obj.payload) handleGameMsg(obj.payload);
         } else if (obj.fromId !== gameState.me.id) {
           handleGameMsg(obj);
         }
@@ -1886,15 +2650,25 @@ async function connectViaAgora() {
         // 房主：广播自己的房间列表，方便后来者同步
         publishRtm({ type: "room-update", players: gameState.players.slice() });
       } else {
-        // 房客：广播加入
-        publishRtm({
+        // 房客：广播加入（连发两次，避开"房主刚好还没 join 完"的窗口）
+        var joinMsg = {
           type: "join-room", roomId: gameState.roomId,
           player: { id: gameState.me.id, name: gameState.me.name, isCreator: false, seat: gameState.myIndex }
-        });
+        };
+        publishRtm(joinMsg);
+        setTimeout(function() { publishRtm(joinMsg); }, 1200);
+        setTimeout(function() { publishRtm(joinMsg); }, 3000);
       }
-      if (gameState.gameStarted && !gameState.gameOver) {
+      // 心跳兜底：房主周期广播列表；房客发现缺席会自动重发 join
+      startRoomStateSync();
+      // 无论是否已知开局，都主动向房主请求一次状态同步
+      // 这样即使错过了 start-game 广播（例如加入频道时机晚了）也能自动跳转
+      setTimeout(function() {
         broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
-      }
+      }, 800);
+      setTimeout(function() {
+        broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+      }, 2500);
     }).catch(function(err) {
       console.error("RTM join channel error:", err);
       setConnStatus("加入声网房间失败", "#e94560");
@@ -2046,7 +2820,7 @@ function handlePeerjsJoinRoom(msg) {
   broadcastGameMsg("player-joined", { player: gameState.players.find(function(pl) { return pl.id === p.id; }) });
   renderLobby();
   updateStartBtn();
-  setConnStatus("房间人数 " + gameState.players.length + "/4", "#4ade80");
+  setConnStatus("房间人数 " + gameState.players.length + "/6", "#4ade80");
   showToast(p.name + " 加入了房间", 2500);
 }
 
@@ -2116,9 +2890,39 @@ function getSavedGame(roomId) {
 
 function onRejoinRequest(data) {
   // 房主端收到重连请求，发送当前状态
-  if (!gameState.isCreator || !gameState.gameStarted) return;
+  if (!gameState.isCreator) return;
+
+  // 掷骰阶段（还没发牌）：先定向补发骰子状态，让重进者能立刻投掷。
+  // 同时继续往下走 state-sync（里面也带 diceState 兜底）。
+  var ds = gameState.diceState;
+  var inDicePhase = !!(ds && ds.phase === "rolling");
+  if (inDicePhase) {
+    broadcastGameMsg("dice-phase", {
+      results: ds.results,
+      round: ds.round,
+      retie: !!ds.tie,
+      tieIds: ds.tieIds || [],
+      players: gameState.players,
+      targetId: data.playerId
+    });
+  }
+
+  if (!gameState.gameStarted && !inDicePhase) return;
   var player = gameState.players.find(function(p) { return p.id === data.playerId; });
   if (!player) return;
+
+  // 关键：给请求者本人发他自己的手牌，不能把房主的手牌发出去
+  var theirInfo = gameState.otherInfo[player.id] || {};
+  // 按 playerId 索引的整包手牌：房主自己的手牌在 gameState.myHand，
+  // 其他人的手牌在 pendingHands / aiHands 里。
+  var hands = {};
+  if (gameState.pendingHands && gameState.pendingHands[player.id]) {
+    hands[player.id] = gameState.pendingHands[player.id];
+  } else if (player.id === gameState.me.id) {
+    hands[player.id] = gameState.myHand;
+  } else if (gameState.aiHands && gameState.aiHands[player.id]) {
+    hands[player.id] = gameState.aiHands[player.id];
+  }
 
   var syncData = {
     players: gameState.players,
@@ -2126,13 +2930,14 @@ function onRejoinRequest(data) {
     remaining: gameState.remaining,
     currentSeat: gameState.currentSeat,
     turnPhase: gameState.turnPhase,
-    myHand: gameState.myHand,
-    myMelds: gameState.myMelds,
-    myDiscards: gameState.myDiscards,
+    hands: hands,                    // 只含"发给请求者"的那一份
+    myMelds: theirInfo.melds || [],
+    myDiscards: theirInfo.discards || [],
     otherInfo: gameState.otherInfo,
-    aiHands: gameState.aiHands || {},
     lastDiscard: gameState.lastDiscard,
     lastDiscardBy: gameState.lastDiscardBy,
+    dealerSeat: gameState.dealerSeat,           // 定庄结果，房客据此标金色（庄家）
+    diceState: gameState.diceState || null,     // 掷骰阶段一并带上，重进者能接着投
     targetId: data.playerId
   };
   broadcastGameMsg("state-sync", syncData);
@@ -2140,29 +2945,63 @@ function onRejoinRequest(data) {
 
 function onStateSync(data) {
   if (data.targetId && data.targetId !== gameState.me.id) return;
-  if (!gameState.gameStarted) {
-    gameState.players = data.players || gameState.players;
-    gameState.deck = data.deck || [];
-    gameState.remaining = data.remaining || 0;
-    gameState.currentSeat = data.currentSeat || 0;
-    gameState.turnPhase = data.turnPhase || "waiting";
-    gameState.myHand = data.myHand || [];
-    gameState.myMelds = data.myMelds || [];
-    gameState.myDiscards = data.myDiscards || [];
-    gameState.otherInfo = data.otherInfo || {};
-    gameState.aiHands = data.aiHands || {};
-    gameState.lastDiscard = data.lastDiscard;
-    gameState.lastDiscardBy = data.lastDiscardBy;
-    gameState.gameStarted = true;
-    gameState.gameOver = false;
-    gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
-    showScreen("game");
-    renderGame();
-    showToast("已恢复对局", 2000);
-    // 如果轮到自己，开始回合
-    if (gameState.currentSeat === gameState.myIndex && gameState.turnPhase === "draw") {
-      beginMyTurn();
-    }
+
+  // 掷骰阶段优先：此时还没发牌，先把骰子状态补上，
+  // 让重进者能投掷（否则他会停在"没有掷骰按钮"的牌桌里）。
+  if (data.diceState && data.diceState.phase === "rolling") {
+    onRemoteDicePhase({
+      results: data.diceState.results || {},
+      round: data.diceState.round || 1,
+      retie: !!data.diceState.tie,
+      tieIds: data.diceState.tieIds || [],
+      players: data.players || gameState.players
+    });
+    return;
+  }
+
+  // 只有完全没开过局（全新进入）才接受全量同步。
+  // 绝不能用 turnPhase === "waiting" 或 myHand.length === 0 当"卡住"的判据：
+  // 开局瞬间 turnPhase 本来就是 waiting、手牌也可能是空的，
+  // 此时若拿 data.myHand 覆盖，等于把【发送方的手牌】塞给自己，自己的牌就没了。
+  if (gameState.gameStarted && gameState.myHand.length > 0) return;
+
+  gameState.players = data.players || gameState.players;
+  gameState.deck = data.deck || [];
+  gameState.remaining = data.remaining || 0;
+  gameState.currentSeat = data.currentSeat || 0;
+  gameState.turnPhase = data.turnPhase || "waiting";
+
+  // 关键：只接受明确按 playerId 索引、发给"我"的手牌。
+  // 绝不能采用 data.myHand —— 那是发送方自己的手牌，
+  // 一旦拿它覆盖，就会变成"看着别人的牌，自己没有牌"（纯 AI 对局假象）。
+  if (data.hands && data.hands[gameState.me.id] !== undefined) {
+    gameState.myHand = data.hands[gameState.me.id].slice();
+  }
+  // 否则保留现有手牌，绝不覆盖、绝不清空
+
+  gameState.myMelds = data.myMelds || gameState.myMelds || [];
+  gameState.myDiscards = data.myDiscards || gameState.myDiscards || [];
+  gameState.otherInfo = data.otherInfo || {};
+  gameState.aiHands = data.aiHands || {};
+  gameState.lastDiscard = data.lastDiscard;
+  gameState.lastDiscardBy = data.lastDiscardBy;
+  // 对局已真正开始：清掉骰子阶段残留，否则牌桌上还挂着骰子、
+  // 操作栏也还停在"已投，等待其他人"。
+  stopDiceStateSync();
+  clearInlineDice();
+  gameState.diceState = null;
+  if (data.dealerSeat !== undefined && data.dealerSeat >= 0) {
+    gameState.dealerSeat = data.dealerSeat;
+  }
+  gameState.gameStarted = true;
+  gameState.gameOver = false;
+  gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+  showScreen("game");
+  renderGame();
+  showToast("已恢复对局", 2000);
+  // 如果轮到自己，开始回合
+  if (gameState.currentSeat === gameState.myIndex && gameState.turnPhase === "draw") {
+    beginMyTurn();
   }
 }
 
@@ -2184,8 +3023,18 @@ function generateId() {
   return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
 }
 
+// 昵称清洗：去空白、限长 12、空则随机生成
+// 防止超长昵称撑破界面或撑大广播体积
+function sanitizeNick(raw) {
+  var s = (raw || "").replace(/[\r\n\t]/g, "").trim();
+  if (!s) s = "玩家" + Math.floor(Math.random() * 1000);
+  // 按字符截断（兼容中文/emoji）
+  if (Array.from(s).length > 12) s = Array.from(s).slice(0, 12).join("");
+  return s;
+}
+
 function createRoom() {
-  var nick = $("nickname").value.trim() || ("玩家" + Math.floor(Math.random() * 1000));
+  var nick = sanitizeNick($("nickname").value);
   $("nickname").value = nick;
   localStorage.setItem("mahjong_nickname", nick);
   customSignalingUrl = ($("signaling-url") ? $("signaling-url").value.trim() : "") || "";
@@ -2198,19 +3047,37 @@ function createRoom() {
   gameState.myIndex = 0;
   gameState.players = [{ id: gameState.me.id, name: nick, ready: false, isCreator: true, seat: 0 }];
   gameState.otherInfo = {};
+  // 建房时清掉上一局残留，避免旧 gameOver / diceState 影响新局
+  gameState.gameStarted = false;
+  gameState.gameOver = false;
+  gameState.diceState = null;
+  gameState.turnPhase = "waiting";
+  gameState.currentSeat = -1;
+  gameState.dealerSeat = -1;
+  gameState.myHand = [];
+  gameState.myMelds = [];
+  gameState.myDiscards = [];
+  gameState.myDraws = [];
+  gameState.aiHands = {};
+  gameState.pendingHands = {};
+  gameState.selectedTile = null;
+  clearInlineDice();
+  stopDiceStateSync();
+  stopRoomStateSync();
 
   $("room-id-input").value = gameState.roomId;
   $("create-room-btn").style.display = "none";
   $("join-room-btn").style.display = "none";
   $("start-game-btn").style.display = "";
-  $("start-game-btn").textContent = "开始游戏 (1/4，不足补AI)";
+  $("start-game-btn").textContent = "开始游戏 (1 人，可2-6人)";
   $("start-game-btn").disabled = false;
   $("share-link-btn").style.display = "";
   $("warning-box").style.display = "";
-  $("room-desc").style.display = "";
+  var rd = $("room-desc");
+  if (rd) rd.style.display = "";   // 房间说明已从大厅移除，元素可能不存在
   renderLobby();
   setConnStatus("房主 · 等待连接...", "#4ade80");
-  showToast("房间已创建：" + gameState.roomId + "，不足4人将自动补AI", 3000);
+  showToast("房间已创建：" + gameState.roomId + "，支持2-6人，最少2人开局", 3000);
   connectToRelay();
 }
 
@@ -2253,7 +3120,7 @@ function fallbackCopy(text) {
 }
 
 function joinRoomByInput() {
-  var nick = $("nickname").value.trim() || ("玩家" + Math.floor(Math.random() * 1000));
+  var nick = sanitizeNick($("nickname").value);
   var rid = $("room-id-input").value.trim();
   if (!rid) { showToast("请输入房间号", 2000); return; }
   $("nickname").value = nick;
@@ -2273,6 +3140,31 @@ function joinRoomByInput() {
 
   gameState.roomId = rid;
   gameState.isCreator = gameState.me.isCreator || false;
+
+  // 加入新房间前清掉上一局的残留状态。
+  // 否则电脑端一直开着标签页时，旧局的 gameOver/turnPhase/currentSeat
+  // 会带进来：renderActionBar 看到 gameOver 直接 return，
+  // 掷骰阶段的按钮就永远画不出来（表现为"房主投了我却没有按钮"）。
+  if (!(saved && saved.myId)) {
+    gameState.gameStarted = false;
+    gameState.gameOver = false;
+    gameState.diceState = null;
+    gameState.turnPhase = "waiting";
+    gameState.currentSeat = -1;
+    gameState.dealerSeat = -1;
+    gameState.myHand = [];
+    gameState.myMelds = [];
+    gameState.myDiscards = [];
+    gameState.myDraws = [];
+    gameState.otherInfo = {};
+    gameState.aiHands = {};
+    gameState.pendingHands = {};
+    gameState.selectedTile = null;
+    clearInlineDice();
+    stopDiceStateSync();
+    stopRoomStateSync();
+  }
+
   $("create-room-btn").style.display = "none";
   $("join-room-btn").style.display = "none";
   $("start-game-btn").style.display = "none";
@@ -2362,6 +3254,10 @@ function resetGameState() {
   gameState.actionTargetSeat = -1;
   gameState.huVotes = {};
   gameState.huProposer = null;
+  gameState.tenpai = false;
+  gameState.tenpaiWaits = [];
+  gameState.dealerSeat = 0;
+  gameState.diceResult = null;
 }
 
 function restartGameClicked() {
@@ -2394,6 +3290,13 @@ function hideResult() {
   $("result-overlay").classList.remove("active");
 }
 
+// 联机说明折叠（默认收起，节省大厅高度）
+function toggleWarningBox() {
+  var box = $("warning-box");
+  if (!box) return;
+  box.classList.toggle("collapsed");
+}
+
 function showRules() {
   $("rules-overlay").classList.add("active");
 }
@@ -2403,28 +3306,650 @@ function hideRules() {
 }
 
 // ============================================================
-// 人机混战游戏逻辑
+// 掷骰定庄（官方规则②：按骰子点数大小顺时针落座，点数最大者为初始庄家）
+// 流程：每个人只掷自己的骰子 → 等最后一人投完 → 比对大小
+//       → 最大值唯一则定庄；最大值并列则并列者重投
 // ============================================================
 
+// 骰子点面（用 Unicode 骰子字符，视觉直观）
+var DICE_FACE = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+
+// 掷骰阶段的状态（存在 gameState.diceState）
+//   diceState = {
+//     results: { playerId: pip },   // 已投出的点数
+//     round: 1,                      // 当前第几轮
+//     phase: "rolling"|"verdict",    // 正在投 或 已出结果
+//     dealerSeat: -1                 // 定庄后的座位
+//   }
+
+// 生成自己的随机点数
+function myDicePip() {
+  return 1 + Math.floor(Math.random() * 6);
+}
+
+// 开始掷骰阶段（房主调用，广播给所有人）
+function beginDicePhase() {
+  gameState.diceState = {
+    results: {},      // playerId -> pip
+    round: 1,
+    phase: "rolling",
+    dealerSeat: -1
+  };
+
+  // 牌桌内嵌掷骰：不弹窗，操作栏出现「掷骰」按钮，
+  // 骰子元素由 renderDiceInline() 挂到中央区与他人头像旁。
+  renderGame();
+  renderDiceInline();
+
+  // 房主：掷骰期间周期性广播骰子状态。
+  // 有人中途才进房间/重进页面时，靠这个把骰子阶段补给他，
+  // 否则他会停在"没有掷骰按钮"的状态（错过唯一那次广播）。
+  startDiceStateSync();
+}
+
+// 掷骰阶段状态心跳（房主侧，2 秒一次，开局或定庄后自动停）
+var _diceSyncTimer = null;
+
+function startDiceStateSync() {
+  stopDiceStateSync();
+  if (!gameState.isCreator) return;
+  var seq = 0;
+  _diceSyncTimer = setInterval(function() {
+    var ds = gameState.diceState;
+    if (!gameState.isCreator || !ds || ds.phase !== "rolling") {
+      stopDiceStateSync();
+      return;
+    }
+    seq++;
+    broadcastGameMsg("dice-phase", {
+      results: ds.results,
+      round: ds.round,
+      retie: !!ds.tie,
+      tieIds: ds.tieIds || [],
+      players: gameState.players,
+      // 心跳序号：让指纹每次都不同，避免被 dedupeGameMsg 当成重复消息吞掉
+      // （内容相同的周期广播若被去重，中途进来的人就永远收不到骰子状态）
+      syncSeq: seq
+    });
+    // 看门狗：全员点数齐了就主动判定；有人迟迟不投则超时代投。
+    // 兜住两种死锁：
+    //   1) 最后一个点数由别人写入、但判定没被触发（双方互相"等待其他人"）
+    //   2) 有人掉线/消息丢失，永远等不到他的点数
+    if (!ds.__waitSince) ds.__waitSince = Date.now();
+    var allThrown = gameState.players.every(function(p) {
+      return ds.results[p.id] !== undefined;
+    });
+    if (allThrown) {
+      ds.__waitSince = 0;
+      checkDiceCompleteInline();
+    } else if (Date.now() - ds.__waitSince > 15000) {
+      var missing = gameState.players.filter(function(p) {
+        return ds.results[p.id] === undefined;
+      });
+      missing.forEach(function(p) {
+        ds.results[p.id] = myDicePip();
+        console.warn("[掷骰] 超时自动代投：" + p.name);
+      });
+      if (missing.length) {
+        showToast("有玩家超时未投，已自动代投", 3000);
+        renderDiceInline();
+      }
+      ds.__waitSince = 0;
+      broadcastGameMsg("dice-phase", {
+        results: ds.results, round: ds.round, retie: !!ds.tie,
+        tieIds: ds.tieIds || [], players: gameState.players,
+        syncSeq: ++seq
+      });
+      checkDiceCompleteInline();
+    }
+  }, 2000);
+}
+
+function stopDiceStateSync() {
+  if (_diceSyncTimer) { clearInterval(_diceSyncTimer); _diceSyncTimer = null; }
+}
+
+// 本人掷骰（牌桌内嵌版）：
+// 房主掷下后，AI 跟随房主同步投掷；房客只投自己。
+function throwMyDice() {
+  if (!gameState.diceState || gameState.diceState.phase !== "rolling") return;
+  if (gameState.diceState.results[gameState.me.id] !== undefined) return;  // 已投过
+
+  var pip = myDicePip();
+  animateInlineDice(gameState.me.id, pip, function() {
+    gameState.diceState.results[gameState.me.id] = pip;
+    renderDiceInline();
+
+    if (gameState.isCreator) {
+      // AI 跟随房主：房主按下后 AI 立刻投出
+      gameState.players.forEach(function(p) {
+        if (isAI(p.id) && gameState.diceState.results[p.id] === undefined) {
+          var ap = myDicePip();
+          animateInlineDice(p.id, ap, function() {
+            gameState.diceState.results[p.id] = ap;
+            renderDiceInline();
+            checkDiceCompleteInline();
+          }, 120);
+        }
+      });
+      broadcastGameMsg("dice-roll", {
+        playerId: gameState.me.id,
+        pip: pip,
+        results: gameState.diceState.results
+      });
+      // 兜底：若场上只有房主一人（无 AI），直接判定
+      checkDiceCompleteInline();
+    } else {
+      broadcastGameMsg("dice-roll", {
+        playerId: gameState.me.id,
+        pip: pip,
+        results: gameState.diceState.results
+      });
+      renderActionBar();
+    }
+  });
+}
+
+// 收到别人掷出的点数（房客/房主侧）：内嵌骰子动画后定格
+function onRemoteDiceRoll(data) {
+  if (!gameState.diceState) return;
+  if (data.playerId && data.playerId !== gameState.me.id && data.pip !== undefined) {
+    animateInlineDice(data.playerId, data.pip, function() {
+      gameState.diceState.results[data.playerId] = data.pip;
+      renderDiceInline();
+    });
+  }
+  if (data.results) {
+    for (var pid in data.results) {
+      if (pid === gameState.me.id) continue;
+      gameState.diceState.results[pid] = data.results[pid];
+    }
+  }
+  renderDiceInline();
+  // 房主是判定权威：收到房客的点数后必须重新判定一次，
+  // 否则房客投完就永远停在"已投，等待其他人"（双方互等死锁）。
+  if (gameState.isCreator) checkDiceCompleteInline();
+}
+
+// 收到掷骰阶段开始（房客侧）：进牌桌、开内嵌骰子、房客掷骰按钮可用
+function onRemoteDicePhase(data) {
+  // 定向重连同步：只给指定玩家处理，别打扰其他人
+  if (data.targetId && data.targetId !== gameState.me.id) return;
+  // 心跳重复到达保护：同一轮的重复广播不要把我的骰子状态冲掉
+  var old = gameState.diceState;
+  if (old && old.phase === "rolling" && data.round === old.round && old.results && old.results[gameState.me.id] !== undefined) {
+    // 我已投过且轮次没变：只合并别人新增的点数，保留自己的
+    if (data.results) {
+      Object.keys(data.results).forEach(function(pid) {
+        if (pid !== gameState.me.id && old.results[pid] === undefined) {
+          old.results[pid] = data.results[pid];
+        }
+      });
+    }
+    renderDiceInline();
+    return;
+  }
+  gameState.diceState = {
+    results: data.results || {},
+    round: data.round || 1,
+    phase: "rolling",
+    dealerSeat: -1,
+    tie: !!data.retie,
+    tieIds: data.tieIds || []
+  };
+  // 同步完整玩家列表（含房主补齐的 AI）
+  if (data.players && data.players.length) {
+    gameState.players = data.players;
+    gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
+    // 补 otherInfo
+    gameState.players.forEach(function(p) {
+      if (!gameState.otherInfo[p.id]) {
+        gameState.otherInfo[p.id] = { handCount: 0, melds: [], discards: [] };
+      }
+    });
+  }
+  // 房客此前可能还在大厅，收到掷骰阶段就进入游戏界面
+  if (!gameState.gameStarted) {
+    gameState.gameStarted = true;
+    gameState.gameOver = false;
+    showScreen("game");
+    renderGame();
+  }
+  renderDiceInline();
+  // 房客端启动看门狗，防止 dice-done 丢失导致卡死
+  if (!gameState.isCreator) startDiceWatchdog();
+}
+
+// 收到最终定庄结果（房客侧）：公示弹窗「👑 谁坐庄」
+function onRemoteDiceDone(data) {
+  if (!gameState.diceState) return;
+  gameState.diceState.phase = "verdict";
+  gameState.diceState.dealerSeat = data.dealerSeat;
+  gameState.diceState.results = data.results || gameState.diceState.results;
+  gameState.diceState.tie = data.tie;
+  gameState.dealerSeat = data.dealerSeat;
+  stopDiceWatchdog();
+  showDealerAnnounce(data.dealerSeat, false);
+}
+
+// 房客端看门狗：所有点数都齐了但迟迟收不到 dice-done（房主消息丢失/丢包），
+// 就自己按同样规则算出庄家并进入 verdict，避免永远卡在"等待其他玩家"。
+var _diceWatchdog = null;
+
+// 房主端看门狗：只要点数齐全且仍在 rolling，就主动判定一次。
+// 之前只在「某人投掷的回调」里调用 checkDiceComplete，一旦最后一个点数
+// 是由别的路径写进来的（AI 批量重投、状态同步等），就没人触发判定 → 卡死。
+var _diceHostWatchdog = null;
+
+function startDiceHostWatchdog() {
+  stopDiceHostWatchdog();
+  _diceHostWatchdog = setInterval(function() {
+    var ds = gameState.diceState;
+    if (!ds || ds.phase !== "rolling" || !gameState.isCreator) { stopDiceHostWatchdog(); return; }
+    var allThrown = gameState.players.every(function(p) {
+      return ds.results[p.id] !== undefined;
+    });
+    if (allThrown) checkDiceCompleteInline();
+  }, 400);
+}
+
+function stopDiceHostWatchdog() {
+  if (_diceHostWatchdog) { clearInterval(_diceHostWatchdog); _diceHostWatchdog = null; }
+}
+
+function startDiceWatchdog() {
+  stopDiceWatchdog();
+  _diceWatchdog = setInterval(function() {
+    var ds = gameState.diceState;
+    if (!ds || ds.phase !== "rolling" || gameState.isCreator) { stopDiceWatchdog(); return; }
+    // 点数没齐就继续等
+    var allThrown = gameState.players.every(function(p) {
+      return ds.results[p.id] !== undefined;
+    });
+    if (!allThrown) return;
+
+    // 点数齐了但还停在 rolling → 房主的 dice-done 没到，自己判定
+    var maxPip = -1, maxSeats = [];
+    gameState.players.forEach(function(p) {
+      var pip = ds.results[p.id];
+      if (pip > maxPip) { maxPip = pip; maxSeats = [p.seat]; }
+      else if (pip === maxPip) { maxSeats.push(p.seat); }
+    });
+    if (maxSeats.length === 1) {
+      ds.phase = "verdict";
+      ds.dealerSeat = maxSeats[0];
+      ds.tie = false;
+      gameState.dealerSeat = maxSeats[0];
+      stopDiceWatchdog();
+      showDealerAnnounce(maxSeats[0], false);
+      showToast("已按点数自行判定庄家（房主消息延迟）", 2500);
+    }
+  }, 1200);
+}
+
+function stopDiceWatchdog() {
+  if (_diceWatchdog) { clearInterval(_diceWatchdog); _diceWatchdog = null; }
+}
+
+// 房主：全员投完后判定（牌桌内嵌版）。
+// 平局 → 公示弹窗「有人重复」；对方点确定 2 秒后 AI 骰子重掷再比。
+// 唯一最大 → 公示弹窗「👑 谁坐庄」。
+function checkDiceCompleteInline() {
+  if (!gameState.isCreator) return;
+  var ds = gameState.diceState;
+  if (!ds || ds.phase !== "rolling") return;
+
+  var allThrown = gameState.players.every(function(p) {
+    return ds.results[p.id] !== undefined;
+  });
+  if (!allThrown) return;   // 还有人在投，超时代投由看门狗处理
+
+  // 并列重投保护：被清点的真人还没重投时不能判定
+  if (ds.tie && ds.tieIds && ds.tieIds.length) {
+    var humanPending = gameState.players.some(function(p) {
+      return ds.tieIds.indexOf(p.id) !== -1 && !isAI(p.id) &&
+             ds.results[p.id] === undefined;
+    });
+    if (humanPending) return;
+  }
+
+  var maxPip = -1, maxSeats = [];
+  gameState.players.forEach(function(p) {
+    var pip = ds.results[p.id];
+    if (pip > maxPip) { maxPip = pip; maxSeats = [p.seat]; }
+    else if (pip === maxPip) { maxSeats.push(p.seat); }
+  });
+
+  if (maxSeats.length === 1) {
+    // 唯一最大：定庄
+    ds.phase = "verdict";
+    ds.dealerSeat = maxSeats[0];
+    ds.tie = false;
+    gameState.dealerSeat = maxSeats[0];
+    stopDiceHostWatchdog();
+    stopDiceWatchdog();
+    broadcastGameMsg("dice-done", {
+      dealerSeat: maxSeats[0],
+      results: ds.results,
+      tie: false
+    });
+    showDealerAnnounce(maxSeats[0], false);
+    return;
+  }
+
+  // 并列：公示「有人重复」弹窗（双方都看得到）
+  var MAX_DICE_ROUND = 12;
+  if (ds.round >= MAX_DICE_ROUND) {
+    var pick = maxSeats[Math.floor(Math.random() * maxSeats.length)];
+    ds.phase = "verdict";
+    ds.dealerSeat = pick;
+    ds.tie = false;
+    gameState.dealerSeat = pick;
+    stopDiceHostWatchdog();
+    stopDiceWatchdog();
+    broadcastGameMsg("dice-done", { dealerSeat: pick, results: ds.results, tie: false });
+    showDealerAnnounce(pick, true);
+    showToast("连续平局超过 " + MAX_DICE_ROUND + " 轮，已随机定庄", 3500);
+    return;
+  }
+
+  ds.round++;
+  ds.tie = true;
+  var tieIds = {};
+  maxSeats.forEach(function(seat) {
+    var p = gameState.players[seat];
+    if (p) tieIds[p.id] = true;
+  });
+  ds.tieIds = Object.keys(tieIds);
+  // 清空并列者点数，等重投
+  gameState.players.forEach(function(p) {
+    if (tieIds[p.id]) delete ds.results[p.id];
+  });
+
+  broadcastGameMsg("dice-phase", {
+    results: ds.results,
+    round: ds.round,
+    retie: true,
+    tieIds: ds.tieIds,
+    players: gameState.players
+  });
+  renderDiceInline();
+  showTieAnnounce(ds.tieIds);
+}
+
+// ============ 牌桌内嵌掷骰（替代旧弹窗版） ============
+// 自己的骰子挂在中央区（剩余牌库与操作栏之间）；
+// 其他玩家的骰子挂在其名字旁（player-header 内）。
+
+// 渲染/刷新牌桌上的骰子元素
+function renderDiceInline() {
+  var ds = gameState.diceState;
+  if (!ds) return;
+
+  // 1) 中央区：自己的骰子（复用 turn-indicator 下方）
+  var center = document.querySelector(".center-area");
+  if (center) {
+    var myEl = document.getElementById("inline-dice-mine");
+    if (!myEl) {
+      myEl = document.createElement("div");
+      myEl.id = "inline-dice-mine";
+      myEl.className = "inline-dice";
+      center.appendChild(myEl);
+    }
+    var myPip = ds.results[gameState.me.id];
+    var myThrown = (myPip !== undefined);
+    var myRetie = (ds.tie && ds.tieIds && ds.tieIds.indexOf(gameState.me.id) !== -1);
+    myEl.innerHTML =
+      "<span class='inline-dice-face'>" + (myThrown ? DICE_FACE[myPip] : "🎲") + "</span>" +
+      "<span class='inline-dice-val'>" + (myThrown ? myPip : (myRetie ? "重投!" : "?")) + "</span>";
+    myEl.style.display = "flex";
+  }
+
+  // 2) 其他玩家：骰子挂在名字旁
+  gameState.players.forEach(function(p) {
+    if (p.id === gameState.me.id) return;
+    var nameEl = $("name-" + posOfSeat(p.seat));
+    if (!nameEl) return;
+    var el = document.getElementById("inline-dice-" + p.id);
+    if (!el) {
+      el = document.createElement("span");
+      el.id = "inline-dice-" + p.id;
+      el.className = "inline-dice inline-dice-opp";
+      nameEl.appendChild(el);
+    }
+    var pip = ds.results[p.id];
+    var thrown = (pip !== undefined);
+    el.innerHTML =
+      "<span class='inline-dice-face'>" + (thrown ? DICE_FACE[pip] : "🎲") + "</span>" +
+      "<span class='inline-dice-val'>" + (thrown ? pip : "?") + "</span>";
+    el.style.display = "inline-flex";
+  });
+
+  renderActionBar();
+}
+
+// 找玩家座位对应的方位 id（name-left / name-top …）
+function posOfSeat(seat) {
+  var map = buildSeatPosMap();
+  return map[seat] || "bottom";
+}
+
+// 掷骰动画：骰面滚动 maxTicks 次后定格，再回调
+function animateInlineDice(playerId, finalPip, done, delay) {
+  var startAfter = delay || 0;
+  setTimeout(function() {
+    var ticks = 0, maxTicks = 8;
+    var el = (playerId === gameState.me.id)
+      ? document.getElementById("inline-dice-mine")
+      : document.getElementById("inline-dice-" + playerId);
+    var faceEl = el ? el.querySelector(".inline-dice-face") : null;
+    var timer = setInterval(function() {
+      ticks++;
+      if (ticks < maxTicks) {
+        var rnd = 1 + Math.floor(Math.random() * 6);
+        if (faceEl) faceEl.textContent = DICE_FACE[rnd];
+      } else {
+        clearInterval(timer);
+        if (faceEl) faceEl.textContent = DICE_FACE[finalPip];
+        if (done) done();
+      }
+    }, 70);
+  }, startAfter);
+}
+
+// 公示弹窗（所有人可见，底部一个确定按钮）
+function showDiceAnnounce(html, onOk) {
+  $("modal-title").textContent = "掷骰公示";
+  $("modal-body").innerHTML = html;
+  $("modal-footer").innerHTML = "<button class='btn btn-gold' id='dice-ok-btn'>确定</button>";
+  $("modal-overlay").classList.add("active");
+  var ok = $("dice-ok-btn");
+  if (ok) ok.onclick = function() {
+    closeModal();
+    if (onOk) onOk();
+  };
+}
+
+// 平局公示：有人重复，请重新投掷（房客点确定后 2 秒 AI 再掷）
+function showTieAnnounce(tieIds) {
+  var names = gameState.players
+    .filter(function(p) { return tieIds.indexOf(p.id) !== -1; })
+    .map(function(p) { return p.name + (isAI(p.id) ? "[AI]" : ""); })
+    .join("、");
+  var isMine = tieIds.indexOf(gameState.me.id) !== -1;
+  var html =
+    "<div style='text-align:center;font-size:16px;line-height:1.9'>" +
+      "<div style='font-size:34px'>🎲🎲</div>" +
+      "<div style='color:var(--gold);font-weight:700;margin-top:6px'>" +
+        (isMine ? "你" : names) + " 点数重复了" +
+      "</div>" +
+      "<div style='color:var(--muted);font-size:13px;margin-top:4px'>请重新投掷</div>" +
+    "</div>";
+  showDiceAnnounce(html, function() {
+    // 确定后：2 秒模拟反应，AI 骰子重掷；真人看到掷骰按钮变可用
+    setTimeout(function() {
+      if (!gameState.isCreator) return;
+      var ds = gameState.diceState;
+      if (!ds || ds.phase !== "rolling") return;
+      gameState.players.forEach(function(p) {
+        if (isAI(p.id) && ds.tieIds && ds.tieIds.indexOf(p.id) !== -1 &&
+            ds.results[p.id] === undefined) {
+          var ap = myDicePip();
+          animateInlineDice(p.id, ap, function() {
+            ds.results[p.id] = ap;
+            renderDiceInline();
+            checkDiceCompleteInline();
+          });
+        }
+      });
+      renderActionBar();
+    }, 2000);
+  });
+}
+
+// 定庄公示：👑 谁坐庄（确定后房主发牌开局）
+function showDealerAnnounce(dealerSeat, wasRandom) {
+  var dp = gameState.players.find(function(p) { return p.seat === dealerSeat; });
+  var dealerName = dp ? dp.name : "玩家";
+  var isMe = (dealerSeat === gameState.myIndex);
+  var html =
+    "<div style='text-align:center;font-size:16px;line-height:1.9'>" +
+      "<div style='font-size:40px'>👑</div>" +
+      "<div style='color:var(--gold);font-weight:700;font-size:20px;margin-top:6px'>" +
+        dealerName + " 坐庄" + (isMe ? " — 由你先手" : "") +
+      "</div>" +
+      (wasRandom ? "<div style='color:var(--muted);font-size:12px;margin-top:4px'>（连续平局，随机确定）</div>" : "") +
+    "</div>";
+  showDiceAnnounce(html, function() {
+    // 房主点确定 → 发牌开局；房客只关闭弹窗等 start-game
+    if (gameState.isCreator) {
+      finalizeStartGame();
+    } else {
+      // 房客兜底：若 start-game 迟迟没到（丢包/房主端异常），
+      // 主动向房主请求状态同步，避免永远停在"等待开始游戏"。
+      setTimeout(function() {
+        if (!gameState.myHand || gameState.myHand.length === 0) {
+          console.warn("[开局] 未收到 start-game，主动请求同步");
+          broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+        }
+      }, 1500);
+      setTimeout(function() {
+        if (!gameState.myHand || gameState.myHand.length === 0) {
+          broadcastGameMsg("rejoin-request", { playerId: gameState.me.id });
+        }
+      }, 3500);
+    }
+  });
+  renderDiceInline();
+  renderActionBar();
+}
+
+// 房主：最终定庄后，发出完整开局广播
+function finalizeStartGame() {
+  stopDiceStateSync();               // 骰子阶段结束，停止状态心跳
+  // 先把骰子结果取出来再清状态：下面 startData.dice 还要用它，
+  // 先置 null 会抛 TypeError，导致广播和开局整个中断
+  // （表现为公示弹窗点完"确定"后卡在"等待开始游戏"、牌库 0）。
+  var diceSnapshot = gameState.diceState
+    ? { dealerSeat: gameState.diceState.dealerSeat, results: gameState.diceState.results || {} }
+    : { dealerSeat: gameState.dealerSeat, results: {} };
+
+  clearInlineDice();                 // 收起牌桌上的骰子
+  gameState.diceState = null;        // 骰子阶段结束
+  renderActionBar();
+
+  var deck = gameState.deck || [];
+  var hands = gameState.pendingHands || {};
+
+  // 兜底：万一 pendingHands 为空（房主刷新/数据丢失），重新发牌，
+  // 否则所有人 0 张牌、牌库 0，牌局无法进行。
+  var hasAnyHand = false;
+  Object.keys(hands).forEach(function(pid) {
+    if (hands[pid] && hands[pid].length) hasAnyHand = true;
+  });
+  if (!hasAnyHand || deck.length === 0) {
+    console.warn("[开局] 手牌/牌库为空，重新发牌");
+    deck = makeDeck();
+    hands = {};
+    gameState.players.forEach(function(p) {
+      hands[p.id] = [];
+      for (var i = 0; i < 13; i++) {
+        if (deck.length) hands[p.id].push(deck.pop());
+      }
+    });
+    gameState.pendingHands = hands;
+    gameState.aiHands = {};
+    gameState.players.forEach(function(p) {
+      if (isAI(p.id)) gameState.aiHands[p.id] = hands[p.id];
+    });
+  }
+  gameState.deck = deck;
+  gameState.remaining = deck.length;
+  if (hands[gameState.me.id]) {
+    gameState.myHand = hands[gameState.me.id].slice();
+  }
+
+  var startData = {
+    deck: deck, remaining: deck.length, firstSeat: gameState.dealerSeat,
+    hands: hands, players: gameState.players,
+    huMode: getHuMode(),
+    enabledPacks: getEnabledPacks().slice(),
+    targetPlayerCount: gameState.targetPlayerCount || 4,
+    dealerSeat: gameState.dealerSeat,
+    dice: diceSnapshot
+  };
+  broadcastStartGame(startData);
+  renderGame();
+  startTurnRemote(gameState.dealerSeat);
+}
+
 function startMixedGame() {
-  // 不足4人补AI
-  var aiCount = 4 - gameState.players.length;
-  var aiNames = ["AI-小机", "AI-小器", "AI-小器灵"];
-  for (var i = 0; i < aiCount; i++) {
+  // 牌局开始，房间列表不再需要同步
+  stopRoomStateSync();
+  // 官方规则：支持 2-6 人。按房主选择的「对局人数」补齐 AI
+  var target = Math.min(6, Math.max(2, gameState.targetPlayerCount || 4));
+  // 先清掉旧的 AI 座位
+  gameState.players = gameState.players.filter(function(p) { return !isAI(p.id); });
+  if (gameState.players.length > target) {
+    gameState.players = gameState.players.slice(0, target);
+  }
+  var aiNeed = Math.max(0, target - gameState.players.length);
+  var aiNames = ["AI-小机", "AI-小器", "AI-小器灵", "AI-小牌", "AI-小友"];
+  for (var i = 0; i < aiNeed; i++) {
     var aiId = "ai-" + (i + 1);
     var aiSeat = gameState.players.length;
     gameState.players.push({
-      id: aiId, name: aiNames[i] || ("AI-" + (i+1)),
+      id: aiId, name: aiNames[i] || ("AI-" + (i + 1)),
       seat: aiSeat, ready: true, isCreator: false, isAI: true
     });
     gameState.otherInfo[aiId] = { handCount: 13, melds: [], discards: [] };
   }
 
+  // 同名去重兜底：历史遗留的重复条目（同一人换了 id）在开局前清掉，
+  // 保留座位号小的那条（先来的），避免人数被撑大。
+  (function dedupePlayers() {
+    var seen = {};
+    var kept = [];
+    gameState.players.slice().sort(function(a, b) { return (a.seat || 0) - (b.seat || 0); })
+      .forEach(function(p) {
+        var key = p.name + "|" + (isAI(p.id) ? "ai" : "human");
+        if (seen[key]) {
+          console.warn("[去重] 重复玩家 " + p.name + " 已移除（保留 seat " + seen[key].seat + "）");
+          return;
+        }
+        seen[key] = p;
+        kept.push(p);
+      });
+    if (kept.length !== gameState.players.length) {
+      gameState.players = kept;
+    }
+  })();
+
   // 重新分配座位（确保连续）
   gameState.players.forEach(function(p, i) { p.seat = i; });
   gameState.myIndex = gameState.players.findIndex(function(p) { return p.id === gameState.me.id; });
 
-  // 发牌
+  // 发牌（先发好牌，掷骰定庄后再正式开始回合）
   var deck = makeDeck();
   var hands = {};
   gameState.aiHands = {};
@@ -2436,7 +3961,7 @@ function startMixedGame() {
 
   gameState.deck = deck;
   gameState.remaining = deck.length;
-  gameState.currentSeat = 0;
+  gameState.dealerSeat = -1;   // 庄家待定，掷骰后确定
   gameState.gameStarted = true;
   gameState.gameOver = false;
   gameState.otherInfo = {};
@@ -2450,28 +3975,105 @@ function startMixedGame() {
   if (hands[gameState.me.id]) {
     gameState.myHand = hands[gameState.me.id];
     gameState.otherInfo[gameState.me.id].handCount = 0;
+  } else {
+    // 兜底：理论上不会发生，但如果 me.id 不在 players 里，
+    // 会变成"旁观者"看三个 AI 打牌。这里强制把自己补进座位并重新发牌。
+    console.warn("[startMixedGame] me.id 不在玩家列表，强制补入");
+    gameState.players.push({
+      id: gameState.me.id, name: gameState.me.name || "我",
+      seat: gameState.players.length, ready: true, isCreator: true
+    });
+    hands[gameState.me.id] = [];
+    for (var h = 0; h < 13; h++) hands[gameState.me.id].push(deck.pop());
+    gameState.myHand = hands[gameState.me.id];
+    gameState.otherInfo[gameState.me.id] = { handCount: 0, melds: [], discards: [] };
+    gameState.myIndex = gameState.players.length - 1;
   }
+
+  // 暂存手牌，等定庄后由 finalizeStartGame 广播
+  gameState.pendingHands = hands;
 
   saveGameState();
   showScreen("game");
   requestFullscreenAndLandscape();
   checkMobileOrientation();
   renderGame();
-  startTurnRemote(0);
 
-  // 广播开始游戏
-  var startData = {
-    deck: deck, remaining: deck.length, firstSeat: 0,
-    hands: hands, players: gameState.players
-  };
-  if (isOnlineMode() || connMode === "peerjs") {
-    sendSignalToServer({
-      type: "broadcast", roomId: gameState.roomId,
-      payload: { type: "start-game", fromId: gameState.me.id, data: startData }
+  // 进入逐人掷骰阶段（AI 自动掷，真人各掷各的）
+  beginDicePhase();
+}
+
+// 广播开局数据：多种通道 + 重发兜底，确保房客一定能收到
+function broadcastStartGame(startData) {
+  var payload = { type: "start-game", fromId: gameState.me.id, data: startData };
+
+  // 提前序列化一次并捕获异常：若有循环引用等问题，立刻暴露而不是静默失败
+  var payloadText, roomMsgText;
+  try {
+    payloadText = JSON.stringify(payload);
+    roomMsgText = JSON.stringify({ type: "room-msg", fromId: gameState.me.id, payload: payload });
+  } catch (e) {
+    console.error("[start-game] 序列化失败（可能存在循环引用）:", e);
+    showToast("开局数据异常，无法广播：" + e.message, 5000);
+    return;
+  }
+
+  function trySend() {
+    var sent = false;
+
+    // 1) WebRTC DataChannel
+    Object.keys(peerDc).forEach(function(id) {
+      var ch = peerDc[id];
+      if (ch && ch.readyState === "open") {
+        try { ch.send(payloadText); sent = true; } catch (e) {}
+      }
     });
+
+    // 2) 声网 RTM 通道（只要有 channel 且已登录就发）
+    if (rtmChannel && rtmLoggedIn) {
+      try {
+        rtmChannel.sendMessage({ text: roomMsgText })
+          .catch(function(err) { console.error("start-game RTM send error:", err); });
+        sent = true;
+      } catch (e) { console.error("start-game RTM exception:", e); }
+    }
+
+    // 3) PeerJS 房主转发
+    if (connMode === "peerjs" && gameState.isCreator) {
+      Object.keys(peerjsLinks).forEach(function(pid) {
+        var c = peerjsLinks[pid];
+        if (c && c.open) {
+          try { c.send({ type: "room-msg", fromId: gameState.me.id, payload: payload }); sent = true; } catch (e) {}
+        }
+      });
+    }
+
+    // 4) 自建 WebSocket
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify({ type: "broadcast", roomId: gameState.roomId, payload: payload }));
+        sent = true;
+      } catch (e) {}
+    }
+
+    return sent;
+  }
+
+  var first = trySend();
+  console.log("[start-game] 首次广播 sent=" + first +
+    " rtmChannel=" + !!rtmChannel + " loggedIn=" + rtmLoggedIn +
+    " peerDc=" + Object.keys(peerDc).length + " mode=" + connMode);
+
+  // 重发两次兜底：有些玩家可能刚 join 频道、还没准备好接收
+  setTimeout(function() { trySend(); }, 600);
+  setTimeout(function() { trySend(); }, 1800);
+
+  if (!first) {
+    showToast("联机通道尚未就绪，正在重试发送开局信息...", 3000);
   }
 }
 
+// 展示掷骰结果（官方规则：点数最大者为初始庄家）
 function beginMyTurn() {
   gameState.turnPhase = "draw";
   gameState.canDraw = true;
@@ -2479,8 +4081,73 @@ function beginMyTurn() {
   showToast("摸牌: 点击牌库或摸牌按钮", 2500);
 }
 
+// ============================================================
+// 听牌（官方规则：手中 13 张只差 1 个字就能胡，即为听牌）
+// 听牌后可用「自摸」或「他人打出的任意一张牌」来胡。
+// 性能：先按词库反推候选字（只测可能补齐的字），再精确验证
+// ============================================================
+function getTenpaiWaits(hand) {
+  if (!hand || hand.length !== 13) return [];
+  var pool = {};
+  for (var i = 0; i < CARD_CHARS.length; i++) pool[CARD_CHARS[i]] = true;
+
+  var handCount = {};
+  for (var j = 0; j < hand.length; j++) {
+    handCount[hand[j]] = (handCount[hand[j]] || 0) + 1;
+  }
+
+  // 反推候选：某个词需要"手牌 + 恰好 1 张"才能凑齐，那张就是候选
+  var candidates = [];
+  var seen = {};
+  for (var k = 0; k < HU_WORDS.length; k++) {
+    var w = HU_WORDS[k];
+    var need = {};
+    for (var n = 0; n < w.length; n++) need[w.charAt(n)] = (need[w.charAt(n)] || 0) + 1;
+    var missCount = 0, missChar = null, feasible = true;
+    for (var c in need) {
+      if (!need.hasOwnProperty(c)) continue;
+      var have = handCount[c] || 0;
+      if (have >= need[c]) continue;
+      var lack = need[c] - have;
+      if (lack > 1) { feasible = false; break; }
+      missCount += lack;
+      missChar = c;
+      if (missCount > 1) { feasible = false; break; }
+    }
+    if (feasible && missCount === 1 && missChar && pool[missChar] && !seen[missChar]) {
+      seen[missChar] = true;
+      candidates.push(missChar);
+    }
+  }
+
+  // 精确验证
+  var waits = [];
+  for (var m = 0; m < candidates.length; m++) {
+    var test = hand.slice();
+    test.push(candidates[m]);
+    if (canHu(test)) waits.push(candidates[m]);
+  }
+  return waits;
+}
+
+// 刷新听牌状态（出牌后调用，手牌 13 张时判定）
+function refreshTenpai() {
+  if (gameState.gameOver) { gameState.tenpai = false; gameState.tenpaiWaits = []; return; }
+  if (gameState.myHand.length !== 13) { gameState.tenpai = false; gameState.tenpaiWaits = []; return; }
+  var waits = getTenpaiWaits(gameState.myHand);
+  gameState.tenpaiWaits = waits;
+  var wasTenpai = gameState.tenpai;
+  gameState.tenpai = waits.length > 0;
+  if (gameState.tenpai && !wasTenpai) {
+    showToast("已听牌！还差 1 张就能胡（听 " + waits.length + " 种）", 3000);
+  }
+  return waits;
+}
+
 function drawCard() {
-  if (!gameState.canDraw || gameState.remaining <= 0 || gameState.gameOver) return;
+  if (!gameState.canDraw || gameState.gameOver) return;
+  // 牌库摸空 → 流局（先判流局，避免按钮点了没反应）
+  if (gameState.remaining <= 0) { checkDraw(); return; }
   gameState.canDraw = false;
   gameState.remaining--;
   var card = gameState.deck.pop() || "";
@@ -2488,10 +4155,19 @@ function drawCard() {
   gameState.myDraws.push(card);
   gameState.turnPhase = "discard";
   gameState.canDiscard = true;
+
+  // 自摸判定：摸到第 14 张后若能胡，提示自摸
+  if (canHu(gameState.myHand)) {
+    gameState.canHu = true;
+    showToast("摸到「" + card + "」！可以自摸胡牌", 3500);
+  } else {
+    showToast("摸到: " + card, 2000);
+  }
+
   renderHand();
   renderTileCount();
   renderActionBar();
-  showToast("摸到: " + card, 2000);
+  updateTurnIndicator();
 
   if (isOnlineMode()) {
     broadcastGameMsg("draw", { playerId: gameState.me.id, remaining: gameState.remaining });
@@ -2512,9 +4188,14 @@ function discardTile() {
   renderDiscards();
   renderTileCount();
   renderActionBar();
+
+  // 出牌后手牌回到 13 张，刷新听牌状态
+  refreshTenpai();
+  renderPlayerInfo();
+
   showToast("打出: " + card, 1500);
 
-  var nextSeat = (gameState.currentSeat + 1) % 4;
+  var nextSeat = nextSeatOf(gameState.currentSeat);
   enterWaitingAction(nextSeat, card);
 
   if (isOnlineMode()) {
@@ -2530,6 +4211,9 @@ function enterWaitingAction(targetSeat, card) {
   gameState.actionTargetSeat = targetSeat;
   gameState.canEat = false;
   gameState.canHu = true;
+  // 记住场上这张待吃的牌，供"用他人打出的牌胡"使用
+  gameState.lastDiscard = card;
+  gameState.lastDiscardBy = prevSeatOf(targetSeat);
 
   var targetPlayer = gameState.players[targetSeat];
   if (!targetPlayer) return;
@@ -2544,8 +4228,23 @@ function enterWaitingAction(targetSeat, card) {
     gameState.canEat = true;
     renderActionBar();
   }
-  // 其他真人玩家可以点胡（canHu已设为true）
+  // 听牌提示：自己 13 张差这张就能胡
+  checkSelfWaitHit(card);
   renderActionBar();
+}
+
+// 判定：场上打出的这张牌，是否正好是自己听的那张
+function checkSelfWaitHit(card) {
+  if (gameState.gameOver) return;
+  if (gameState.myHand.length !== 13) return;
+  if (!card) return;
+  var test = gameState.myHand.slice();
+  test.push(card);
+  if (canHu(test)) {
+    gameState.tenpai = true;
+    gameState.canHu = true;
+    showToast("「" + card + "」正是你听的那张，可以胡！", 3500);
+  }
 }
 
 function selectTile(ch) {
@@ -2607,7 +4306,7 @@ function simulateAI(seat) {
     renderPlayerInfo();
     showToast(player.name + " 打出: " + discardCard, 1500);
 
-    var nextSeat = (seat + 1) % 4;
+    var nextSeat = nextSeatOf(seat);
     broadcastGameMsg("ai-discard", {
       playerId: player.id, card: discardCard, nextSeat: nextSeat
     });
@@ -2666,7 +4365,7 @@ function aiDecideAction(seat, card) {
       renderMelds();
       renderPlayerInfo();
       renderDiscards();
-      showToast(player.name + " 吃了 " + word, 2000);
+      showToast(player.name + " 吃了「" + card + "」", 2000);
       broadcastGameMsg("eat", { playerId: player.id, word: word, card: card });
       setTimeout(function() { aiDiscardAfterMeld(seat); }, 800);
       return;
@@ -2717,7 +4416,7 @@ function aiDiscardAfterMeld(seat) {
   renderPlayerInfo();
   showToast(player.name + " 打出: " + discardCard, 1500);
 
-  var nextSeat = (seat + 1) % 4;
+  var nextSeat = nextSeatOf(seat);
   broadcastGameMsg("ai-discard", {
     playerId: player.id, card: discardCard, nextSeat: nextSeat
   });
@@ -2791,6 +4490,20 @@ function attemptHu() {
   showHuConfirm();
 }
 
+// 取"用于结算的手牌"：13 张时要把场上那张算进来（用他人打出的牌胡）
+function getHuHand() {
+  var hand = gameState.myHand.slice();
+  if (hand.length === 13 && gameState.lastDiscard) {
+    hand.push(gameState.lastDiscard);
+  }
+  return hand;
+}
+
+// 是否属于"用他人打出的牌胡"（点炮）
+function isRonHu() {
+  return gameState.myHand.length === 13 && !!gameState.lastDiscard;
+}
+
 function showHuConfirm() {
   $("hu-confirm-overlay").classList.add("active");
   gameState.huVotes = {};
@@ -2798,6 +4511,10 @@ function showHuConfirm() {
   gameState.huProposer = gameState.me.id;
 
   var humanVoters = getHumanPlayers().filter(function(p) { return p.id !== gameState.me.id; });
+  var mode = getHuMode();
+  var huHand = getHuHand();
+  var ronTip = isRonHu() ? "（用「" + gameState.lastDiscard + "」胡牌）" : "（自摸）";
+  var huSol = findHuSolution(huHand);
 
   if (humanVoters.length === 0) {
     // 只有自己一个真人，直接胡
@@ -2810,14 +4527,63 @@ function showHuConfirm() {
     btn.textContent = "确认胡牌";
     btn.onclick = function() {
       hideHuConfirm();
-      var huWords = findHuSolution(gameState.myHand);
+      var huWords = huSol;
       endOnlineGame(gameState.me.id, huWords);
       broadcastGameMsg("game-over", { winnerId: gameState.me.id, huWords: huWords });
     };
     footer.appendChild(btn);
+  } else if (mode === "easy") {
+    // 入门档：玩家本人认可即算胡牌，无需他人投票
+    $("hu-vote-status").textContent = "【入门】玩家本人认可即算胡牌";
+    $("hu-vote-list").innerHTML = "";
+
+    var handDivE = document.createElement("div");
+    handDivE.style.textAlign = "center";
+    handDivE.style.margin = "12px 0";
+    handDivE.innerHTML = "<div style='font-size:13px;color:var(--muted);margin-bottom:8px'>你的牌面：</div>";
+    var tileRowE = document.createElement("div");
+    tileRowE.style.display = "flex";
+    tileRowE.style.gap = "4px";
+    tileRowE.style.justifyContent = "center";
+    tileRowE.style.flexWrap = "wrap";
+    gameState.myHand.forEach(function(ch) { tileRowE.appendChild(createSmallTile(ch)); });
+    handDivE.appendChild(tileRowE);
+    if (isRonHu()) {
+      var ronEl = document.createElement("div");
+      ronEl.style.cssText = "font-size:13px;color:var(--gold);margin-top:8px";
+      ronEl.textContent = "+ " + gameState.lastDiscard + "（用他人打出的牌）";
+      handDivE.appendChild(ronEl);
+    }
+    $("hu-vote-list").appendChild(handDivE);
+
+    var footerE = document.querySelector("#hu-confirm-modal .btn-row");
+    footerE.innerHTML = "";
+    var okBtn = document.createElement("button");
+    okBtn.className = "btn btn-gold";
+    okBtn.textContent = "确认胡牌";
+    okBtn.onclick = function() {
+      hideHuConfirm();
+      var hw = huSol;
+      endOnlineGame(gameState.me.id, hw);
+      broadcastGameMsg("game-over", { winnerId: gameState.me.id, huWords: hw });
+      gameState.huVotes = {};
+      gameState.huProposer = null;
+    };
+    footerE.appendChild(okBtn);
+
+    var cancelE = document.createElement("button");
+    cancelE.className = "btn btn-secondary";
+    cancelE.textContent = "再想想";
+    cancelE.onclick = function() {
+      gameState.huVotes = {};
+      gameState.huProposer = null;
+      hideHuConfirm();
+      showToast("已取消胡牌", 1500);
+    };
+    footerE.appendChild(cancelE);
   } else {
-    // 有其他真人，发起投票
-    $("hu-vote-status").textContent = "等待 " + humanVoters.length + " 名真人确认...";
+    // 进阶 / 严格：发起投票
+    $("hu-vote-status").textContent = "【" + HU_MODES[mode].label + "】等待 " + humanVoters.length + " 名真人确认...";
     $("hu-vote-list").innerHTML = "";
 
     var handDiv = document.createElement("div");
@@ -2831,6 +4597,12 @@ function showHuConfirm() {
     tileRow.style.flexWrap = "wrap";
     gameState.myHand.forEach(function(ch) { tileRow.appendChild(createSmallTile(ch)); });
     handDiv.appendChild(tileRow);
+    if (isRonHu()) {
+      var ronEl2 = document.createElement("div");
+      ronEl2.style.cssText = "font-size:13px;color:var(--gold);margin-top:8px";
+      ronEl2.textContent = "+ " + gameState.lastDiscard + "（用他人打出的牌）";
+      handDiv.appendChild(ronEl2);
+    }
     $("hu-vote-list").appendChild(handDiv);
 
     humanVoters.forEach(function(p) {
@@ -2860,7 +4632,7 @@ function showHuConfirm() {
 
     broadcastGameMsg("hu-propose", {
       playerId: gameState.me.id, name: gameState.me.name,
-      hand: gameState.myHand.slice(), melds: gameState.myMelds
+      hand: huHand, melds: gameState.myMelds
     });
   }
 }
@@ -2923,6 +4695,8 @@ function passAction() {
   gameState.lastDiscardBy = -1;
   gameState.actionTargetSeat = -1;
 
+  // 先广播再本地推进；onRemotePass 里会用 fromId 过滤掉自己的消息，
+  // 不会重复触发 startTurnRemote。
   if (isOnlineMode()) {
     broadcastGameMsg("pass-action", { playerId: gameState.me.id, nextSeat: nextSeat });
   }
@@ -2943,13 +4717,20 @@ function showEatDialog(options) {
   var grid = document.createElement("div");
   grid.style.display = "flex";
   grid.style.flexWrap = "wrap";
-  grid.style.gap = "8px";
+  grid.style.gap = "10px";
   grid.style.justifyContent = "center";
   options.forEach(function(word) {
     var btn = document.createElement("button");
-    btn.className = "btn btn-secondary";
+    btn.className = "btn btn-secondary eat-word-btn";
+    // 放大点按区域：手机上按钮小于 44px 高就点不准（反馈：选词语的按钮不好点）
     btn.style.width = "auto";
-    btn.style.padding = "10px 16px";
+    btn.style.minWidth = "88px";
+    btn.style.minHeight = "52px";
+    btn.style.padding = "12px 20px";
+    btn.style.fontSize = "20px";
+    btn.style.lineHeight = "1.2";
+    btn.style.letterSpacing = "2px";
+    btn.style.touchAction = "manipulation";
     btn.textContent = word;
     btn.onclick = function() { confirmEat(word); };
     grid.appendChild(btn);
@@ -2986,7 +4767,7 @@ function confirmEat(word) {
   renderHand();
   renderMelds();
   renderActionBar();
-  showToast("吃! " + word, 2000);
+  showToast("吃「" + card + "」", 2000);
 
   if (isOnlineMode()) {
     broadcastGameMsg("eat", {
@@ -3003,8 +4784,52 @@ function findPlayerBySeat(seat) {
   return gameState.players.find(function(p) { return p.seat === seat; });
 }
 
+// ============================================================
+// 方位映射（支持 2-6 人）
+// 自己永远在 bottom；其余玩家按顺时针分布到 right/topright/top/topleft/left
+// 返回 [pos, seat] 数组，供渲染使用
+// ============================================================
+var ALL_POS = ["bottom", "right", "topright", "top", "topleft", "left"];
+
+// 按人数决定使用哪些方位（从 bottom 开始顺时针）
+function posListFor(count) {
+  // 各家座位相对自己的偏移 -> 方位
+  if (count <= 2) return ["bottom", "top"];
+  if (count === 3) return ["bottom", "right", "left"];
+  if (count === 4) return ["bottom", "right", "top", "left"];
+  if (count === 5) return ["bottom", "right", "topright", "topleft", "left"];
+  return ["bottom", "right", "topright", "top", "topleft", "left"];
+}
+
+// 给出「座位 -> 方位」的映射表
+function buildSeatPosMap() {
+  var players = gameState.players;
+  var n = players.length;
+  if (n === 0) return {};
+  var mySeat = gameState.myIndex >= 0 ? gameState.myIndex : 0;
+  var posList = posListFor(n);
+  var map = {};
+  for (var i = 0; i < n; i++) {
+    // 从自己开始，顺时针
+    var seat = (mySeat + i) % n;
+    var pos = posList[i];
+    if (pos) map[seat] = pos;
+  }
+  return map;
+}
+
+// 方位 -> 座位（渲染时用）
 function seatFromPos(pos) {
-  return { bottom: 0, right: 1, top: 2, left: 3 }[pos];
+  var map = buildSeatPosMap();
+  for (var seat in map) {
+    if (map[seat] === pos) return parseInt(seat, 10);
+  }
+  return -1;
+}
+
+// 当前人数下实际使用的方位列表
+function activePositions() {
+  return posListFor(gameState.players.length || 4);
 }
 
 function renderLobby() {
@@ -3040,7 +4865,20 @@ function renderLobby() {
   });
 }
 
+// 清除牌桌上的内嵌骰子（发牌开局时调用）
+function clearInlineDice() {
+  var mine = document.getElementById("inline-dice-mine");
+  if (mine) mine.remove();
+  gameState.players.forEach(function(p) {
+    var el = document.getElementById("inline-dice-" + p.id);
+    if (el) el.remove();
+  });
+}
+
 function renderGame() {
+  // 每次渲染前自检：确保自己在玩家列表里、座位有效、手牌不空。
+  // 否则会出现"只有几个 AI 在打、自己成了旁观者"的画面。
+  ensureSelfInPlayers();
   renderTileCount();
   renderPlayerInfo();
   renderMelds();
@@ -3056,34 +4894,72 @@ function renderTileCount() {
 }
 
 function renderPlayerInfo() {
-  var positions = [
-    { pos: "bottom", seat: 0 }, { pos: "right", seat: 1 },
-    { pos: "top", seat: 2 }, { pos: "left", seat: 3 }
-  ];
-  positions.forEach(function(m) {
-    var p = findPlayerBySeat(m.seat);
-    var nameEl = $("name-" + m.pos);
-    var statusEl = $("status-" + m.pos);
-    if (p) {
-      nameEl.textContent = p.name + (m.seat === gameState.myIndex ? " (我)" : "") + (isAI(p.id) ? " [AI]" : "");
-      nameEl.classList.toggle("me", m.seat === gameState.myIndex);
-      nameEl.classList.toggle("active", gameState.currentSeat === m.seat);
-      if (gameState.currentSeat === m.seat) {
-        statusEl.textContent = "● 回合中";
-        statusEl.style.color = "var(--my-turn)";
-      } else {
-        var info = gameState.otherInfo[p.id];
-        if (info && m.seat !== gameState.myIndex) {
-          statusEl.textContent = info.handCount + "张";
-          statusEl.style.color = "var(--muted)";
-        } else {
-          statusEl.textContent = "";
-        }
-      }
+  var seatMap = buildSeatPosMap();       // seat -> pos（当前人数）
+  var activePos = activePositions();     // 当前人数使用的方位
+
+  // 先清空所有方位（含未使用的）
+  ALL_POS.forEach(function(pos) {
+    var nameEl = $("name-" + pos);
+    var statusEl = $("status-" + pos);
+    var area = $("player-" + pos);
+    var inUse = activePos.indexOf(pos) !== -1;
+    if (area) area.style.display = inUse ? "" : "none";
+    if (!inUse) {
+      if (nameEl) { nameEl.textContent = " — "; nameEl.className = "player-name"; nameEl.style.color = ""; nameEl.style.textShadow = ""; }
+      if (statusEl) statusEl.textContent = "";
+    }
+  });
+
+  // 再填充在用的方位
+  Object.keys(seatMap).forEach(function(seatStr) {
+    var seat = parseInt(seatStr, 10);
+    var pos = seatMap[seat];
+    var p = findPlayerBySeat(seat);
+    var nameEl = $("name-" + pos);
+    var statusEl = $("status-" + pos);
+    if (!p || !nameEl || !statusEl) return;
+
+    var isMe = (seat === gameState.myIndex);
+    var tenpaiTag = (isMe && gameState.tenpai) ? " ✦听" : "";
+    // 庄家标记：已开局且庄家已定（dealerSeat >= 0）时显示
+    var isDealer = (gameState.gameStarted && gameState.dealerSeat >= 0 && seat === gameState.dealerSeat);
+    nameEl.textContent = p.name + (isMe ? " (我)" : "") + (isAI(p.id) ? " [AI]" : "") + tenpaiTag;
+    if (isDealer) {
+      var dtag = document.createElement("span");
+      dtag.className = "dealer-tag";
+      dtag.textContent = "（庄家）";
+      nameEl.appendChild(dtag);
+    }
+    nameEl.classList.toggle("me", isMe);
+    nameEl.classList.toggle("active", gameState.currentSeat === seat);
+    nameEl.classList.toggle("is-dealer", isDealer);
+
+    if (isDealer) {
+      // 庄家名字金色常驻，优先级高于回合高亮/听牌
+      nameEl.style.color = "var(--gold)";
+      nameEl.style.textShadow = "0 0 8px rgba(255,215,0,0.6)";
+    } else if (isMe && gameState.tenpai) {
+      nameEl.style.color = "var(--gold)";
+      nameEl.style.textShadow = "0 0 8px rgba(255,215,0,0.6)";
     } else {
-      nameEl.textContent = " — ";
-      nameEl.className = "player-name";
-      statusEl.textContent = "";
+      nameEl.style.textShadow = "";
+      if (!isMe) nameEl.style.color = "";
+    }
+
+    if (gameState.currentSeat === seat) {
+      statusEl.textContent = "● 回合中";
+      statusEl.style.color = "var(--my-turn)";
+    } else {
+      var info = gameState.otherInfo[p.id];
+      if (isMe) {
+        statusEl.textContent = gameState.myHand.length + "张" + (gameState.tenpai ? " · 已听牌" : "");
+        statusEl.style.color = gameState.tenpai ? "var(--gold)" : "var(--muted)";
+      } else if (info) {
+        statusEl.textContent = info.handCount + "张";
+        statusEl.style.color = "var(--muted)";
+      } else {
+        statusEl.textContent = "";
+      }
     }
   });
 }
@@ -3228,6 +5104,30 @@ function renderActionBar() {
   bar.innerHTML = "";
   bar.style.display = "none";
 
+  // 掷骰定庄阶段：吃/胡/过的位置显示掷骰按钮（对局尚未开始）。
+  // 必须排在 gameOver 判断之前——中途重进/旧局残留的 gameOver
+  // 会让这里提前 return，掷骰按钮就永远画不出来。
+  var ds = gameState.diceState;
+  if (ds && ds.phase === "rolling") {
+    var meThrown = (ds.results[gameState.me.id] !== undefined);
+    bar.style.display = "flex";
+    if (!meThrown) {
+      var isMyRetie = ds.tie && ds.tieIds && ds.tieIds.indexOf(gameState.me.id) !== -1;
+      var ddb = document.createElement("button");
+      ddb.className = "action-btn gold";
+      ddb.textContent = isMyRetie ? "🎲 重投骰子" : "🎲 掷骰";
+      ddb.onclick = throwMyDice;
+      bar.appendChild(ddb);
+    } else {
+      var waiting = document.createElement("button");
+      waiting.className = "action-btn secondary";
+      waiting.disabled = true;
+      waiting.textContent = "已投，等待其他人...";
+      bar.appendChild(waiting);
+    }
+    return;
+  }
+
   if (gameState.gameOver) return;
 
   // 等待吃胡阶段
@@ -3269,7 +5169,14 @@ function renderActionBar() {
 
   var isMyTurn = gameState.currentSeat === gameState.myIndex;
   if (!isMyTurn) return;
-  if (gameState.turnPhase === "waiting") return;
+
+  // 轮到自己却还停在 waiting（例如错过 turn-change、或开局时先置 waiting）：
+  // 直接纠正成 draw，否则下面会 return，界面上就没有摸牌按钮，
+  // 表现为"你的回合但没有摸牌按钮"。
+  if (gameState.turnPhase === "waiting") {
+    gameState.turnPhase = "draw";
+    gameState.canDraw = true;
+  }
 
   if (gameState.turnPhase === "draw") {
     if (gameState.canDraw) {
@@ -3308,12 +5215,15 @@ function renderActionBar() {
 }
 
 function renderMelds() {
-  ["bottom", "top", "left", "right"].forEach(function(pos) {
+  ALL_POS.forEach(function(pos) {
     var seat = seatFromPos(pos);
     var area = $("meld-" + pos);
+    if (!area) return;
     area.innerHTML = "";
+    if (seat < 0) return;   // 该方位没人
+
     var melds = [];
-    if (pos === "bottom") {
+    if (seat === gameState.myIndex) {
       melds = gameState.myMelds;
     } else {
       var p = findPlayerBySeat(seat);
@@ -3336,10 +5246,13 @@ function renderMelds() {
 }
 
 function renderDiscards() {
-  ["bottom", "right", "top", "left"].forEach(function(pos) {
+  ALL_POS.forEach(function(pos) {
     var seat = seatFromPos(pos);
     var area = $("discard-" + pos);
+    if (!area) return;
     area.innerHTML = "";
+    if (seat < 0) return;   // 该方位没人
+
     var discards = [];
     if (seat === gameState.myIndex) {
       discards = gameState.myDiscards;
@@ -3449,6 +5362,30 @@ function init() {
 
   $("create-room-btn").onclick = createRoom;
   $("join-room-btn").onclick = joinRoomByInput;
+
+  // 判定机制选择器
+  var modeSel = $("hu-mode-select");
+  if (modeSel) {
+    modeSel.onchange = function() { setHuMode(this.value); };
+    setHuMode(getHuMode());
+  }
+
+  // 扩充包勾选网格
+  renderPackGrid();
+  renderPackDetail();
+  rebuildDeck();
+
+  // 对局人数选择器
+  var pcSel = $("player-count-select");
+  if (pcSel) {
+    pcSel.value = String(gameState.targetPlayerCount || 4);
+    pcSel.onchange = function() {
+      gameState.targetPlayerCount = parseInt(this.value, 10) || 4;
+      updatePlayerCountHint();
+      updateStartBtn();
+    };
+    updatePlayerCountHint();
+  }
   $("start-game-btn").onclick = startGameClicked;
   $("share-link-btn").onclick = shareRoomLink;
   $("send-msg").onclick = sendMessage;
@@ -3478,10 +5415,33 @@ function init() {
 
   // 手机端：屏幕方向变化监听
   window.addEventListener("orientationchange", function() {
-    setTimeout(checkMobileOrientation, 200);
+    syncViewportHeightWithRetry();
+    setTimeout(function() {
+      syncViewportHeightWithRetry();
+      checkMobileOrientation();
+    }, 200);
   });
   window.addEventListener("resize", function() {
+    syncViewportHeightWithRetry();
     if (isMobile()) checkMobileOrientation();
+  });
+  // 地址栏收起/展开时 visualViewport 会变，必须跟着更新
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewportHeightWithRetry);
+  }
+  syncViewportHeightWithRetry();
+
+  // 输入框失焦兜底：重设 --vh 并把窗口滚动归零。
+  // 优狐键盘收起后不一定触发 resize，失焦补一次，保证布局回正。
+  document.addEventListener("focusout", function(e) {
+    var t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) {
+      setTimeout(function() {
+        syncViewportHeightWithRetry();
+        window.scrollTo(0, 0);
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      }, 250);
+    }
   });
 
   // 旋转确认按钮
@@ -3502,6 +5462,10 @@ function init() {
   watchFullscreenHijack();
 
   tryImportFromClipboard();
+
+  // 联机说明默认折叠，减少大厅高度
+  var wbox = $("warning-box");
+  if (wbox) wbox.classList.add("collapsed");
 
   renderLobby();
 }
